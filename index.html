@@ -1932,6 +1932,11 @@ function escHtml(s) {
 // ════════════════════════════════════════
 let checkHistory = [];
 
+// Sanitiza entries antigos sem campos processados
+function sanitizeHistory() {
+  checkHistory = checkHistory.filter(c => c.items && c.items.length > 0);
+}
+
 function switchMainTab(tab) {
   // Esconde tudo
   document.getElementById('dashboard-section').style.display = 'none';
@@ -2131,7 +2136,7 @@ async function publishToGitHub() {
         priority: t.priority, priorityRaw: t.priorityRaw, desc: t.desc
       })),
       kpis: buildKPIPayload(),
-      checks: checkHistory
+      checks: checkHistory.filter(c => c.items && c.items.length > 0)
     };
 
     const jsonContent = JSON.stringify(payload, null, 2);
