@@ -2008,10 +2008,30 @@ function saveCheck() {
   const raw = document.getElementById('check-textarea').value.trim();
   if (!raw) return;
 
+  // Processar campos para publicação na diretoria
+  const sentMatch   = raw.match(/sentimento da semana\s*[:\-]\s*(.+)/i);
+  const almejoMatch = raw.match(/(?:o que almejo[^:]*|almejo|para a? semana entrante|para a? pr[oó]xima semana)\s*[:\-]\s*(.+)/i);
+  const radarIdx    = raw.search(/a[çc][oõ]es? em radar/i);
+  const mainBlock   = radarIdx >= 0 ? raw.slice(0, radarIdx) : raw;
+  const radarBlock  = radarIdx >= 0 ? raw.slice(radarIdx) : '';
+  const extractItems = (block) => block.split('\n')
+    .map(l => l.replace(/^[\s\u2060\u200b\u200c\u00a0\-•–—●◦▸▹→*⁠]+/, '').trim())
+    .filter(l => l.length > 3
+      && !/sentimento da semana/i.test(l)
+      && !/almejo/i.test(l)
+      && !/semana entrante/i.test(l)
+      && !/pr[oó]xima semana/i.test(l)
+      && !/a[çc][oõ]es? em radar/i.test(l)
+      && !/check semanal/i.test(l));
+
   const entry = {
-    id: Date.now(),
+    id:        Date.now(),
     title,
-    date: new Date().toLocaleDateString('pt-BR'),
+    date:      new Date().toLocaleDateString('pt-BR'),
+    sentiment: sentMatch   ? sentMatch[1].trim()   : '—',
+    almejo:    almejoMatch ? almejoMatch[1].trim()  : '—',
+    items:     extractItems(mainBlock),
+    radar:     extractItems(radarBlock),
     raw
   };
   checkHistory.unshift(entry);
