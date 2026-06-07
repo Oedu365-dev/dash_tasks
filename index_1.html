@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Central de Tarefas — Dashboard Executivo</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;0,700;1,300&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --ink: #0f1923;
+    --ink-mid: #2a3a4a;
+    --ink-light: #4a5d6e;
+    --paper: #f4f1eb;
+    --paper-warm: #ede9e0;
+    --paper-cool: #eef0f3;
+    --accent: #1a4a6b;
+    --accent-bright: #1e6fa8;
+    --gold: #b8963e;
+    --gold-light: #d4b06a;
+    --danger: #8b2e2e;
+    --danger-light: #c0392b;
+    --success: #2e6b4f;
+    --success-light: #27ae60;
+    --warn: #7a5c1e;
+    --warn-light: #e67e22;
+    --border: rgba(15,25,35,0.12);
+    --shadow: 0 2px 16px rgba(15,25,35,0.08);
+    --shadow-lg: 0 8px 40px rgba(15,25,35,0.14);
+    --planner: #1a4a6b;
+    --trello: #b8963e;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Instrument Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid var(--gold);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-brand {
+    display: flex;
+    flex-direction: column;
+  }
+  .header-brand h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: -0.3px;
+    color: var(--paper);
+    line-height: 1;
+  }
+  .header-brand span {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--gold-light);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .header-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .badge {
+    padding: 4px 12px;
+    border-radius: 2px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    font-weight: 500;
+  }
+  .badge-planner { background: var(--planner); color: #a8c8e8; }
+  .badge-trello { background: var(--trello); color: #fdedc6; }
+  .badge-inactive { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); }
+
+  /* ─── MAIN WRAPPER ─── */
+  main { max-width: 1280px; margin: 0 auto; padding: 0 40px 60px; }
+
+  /* ─── UPLOAD SECTION ─── */
+  #upload-section {
+    padding: 60px 0 40px;
+  }
+  .upload-title {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--ink);
+    margin-bottom: 8px;
+    line-height: 1.1;
+  }
+  .upload-title em { font-style: italic; color: var(--accent-bright); }
+  .upload-subtitle {
+    color: var(--ink-light);
+    font-size: 13px;
+    margin-bottom: 40px;
+  }
+
+  .upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  .upload-card {
+    background: white;
+    border: 2px dashed var(--border);
+    border-radius: 4px;
+    padding: 32px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px; height: 100%;
+  }
+  .upload-card.planner::before { background: var(--planner); }
+  .upload-card.trello::before { background: var(--trello); }
+  .upload-card:hover { border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-1px); }
+  .upload-card.loaded { border-style: solid; border-color: var(--success); background: #f0faf5; }
+  .upload-card.loaded::after {
+    content: '✓';
+    position: absolute;
+    top: 12px; right: 16px;
+    color: var(--success);
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .upload-card input[type=file] { display: none; }
+  .upload-source-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .planner .upload-source-label { color: var(--planner); }
+  .trello .upload-source-label { color: var(--trello); }
+  .upload-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .upload-card p { font-size: 12px; color: var(--ink-light); }
+  .upload-filename {
+    margin-top: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--success);
+    background: rgba(46,107,79,0.08);
+    padding: 4px 8px;
+    border-radius: 2px;
+    display: none;
+  }
+  .upload-card.loaded .upload-filename { display: block; }
+
+  .btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 14px 32px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary:hover { background: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-secondary {
+    background: transparent;
+    color: var(--ink);
+    border: 1.5px solid var(--border);
+    padding: 8px 20px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--ink); background: var(--paper-warm); }
+
+  /* ─── MAPPING MODAL ─── */
+  #mapping-section {
+    display: none;
+    padding: 40px 0;
+  }
+  .mapping-title {
+    font-family: 'Fraunces', serif;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .mapping-subtitle { color: var(--ink-light); font-size: 13px; margin-bottom: 32px; }
+
+  .mapping-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .mapping-tab {
+    padding: 10px 24px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-light);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+  }
+  .mapping-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .mapping-tab-content { display: none; }
+  .mapping-tab-content.active { display: block; }
+
+  .mapping-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .mapping-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 6px;
+  }
+  .mapping-field select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 2px;
+    background: white;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a5d6e'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+  }
+  .mapping-field select:focus { outline: none; border-color: var(--accent); }
+
+  .mapping-preview {
+    background: var(--paper-cool);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+  }
+  .mapping-preview table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .mapping-preview th { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-light); padding: 6px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  .mapping-preview td { padding: 6px 12px; border-bottom: 1px solid rgba(0,0,0,0.04); color: var(--ink-mid); }
+  .mapping-preview tr:last-child td { border-bottom: none; }
+
+  .mapping-actions { display: flex; gap: 12px; align-items: center; }
+
+  /* ─── DASHBOARD ─── */
+  #dashboard-section { display: none; padding: 40px 0; }
+
+  .dash-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dash-header-left h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .dash-header-left p { color: var(--ink-light); font-size: 12px; }
+  .dash-actions { display: flex; gap: 10px; }
+
+  /* KPI CARDS */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .kpi-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .kpi-card:hover { box-shadow: var(--shadow); }
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 100%; height: 3px;
+  }
+  .kpi-card.total::after { background: var(--ink-light); }
+  .kpi-card.done::after { background: var(--success-light); }
+  .kpi-card.late::after { background: var(--danger-light); }
+  .kpi-card.soon::after { background: var(--warn-light); }
+  .kpi-card.prog::after { background: var(--accent-bright); }
+  .kpi-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 10px;
+  }
+  .kpi-value {
+    font-family: 'Fraunces', serif;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .kpi-card.total .kpi-value { color: var(--ink); }
+  .kpi-card.done .kpi-value { color: var(--success); }
+  .kpi-card.late .kpi-value { color: var(--danger-light); }
+  .kpi-card.soon .kpi-value { color: var(--warn-light); }
+  .kpi-card.prog .kpi-value { color: var(--accent-bright); }
+  .kpi-sub { font-size: 11px; color: var(--ink-light); }
+
+  /* INSIGHTS */
+  .insights-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .insight-card {
+    border-radius: 4px;
+    padding: 16px 20px;
+    border-left: 4px solid;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .insight-card.warn { background: #fdf6ec; border-color: var(--warn-light); }
+  .insight-card.danger { background: #fdf0f0; border-color: var(--danger-light); }
+  .insight-card.info { background: #eef5fb; border-color: var(--accent-bright); }
+  .insight-card.success { background: #edf7f2; border-color: var(--success-light); }
+  .insight-icon { font-size: 16px; }
+  .insight-title { font-size: 12px; font-weight: 600; color: var(--ink); }
+  .insight-desc { font-size: 11px; color: var(--ink-light); }
+
+  /* CHARTS ROW */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  .chart-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+  }
+  .chart-card h4 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 20px;
+    font-family: 'DM Mono', monospace;
+  }
+  .chart-wrap { position: relative; height: 200px; }
+  .chart-wrap canvas { max-height: 200px; }
+
+  /* PROGRESS BAR */
+  .progress-bar-wrap { margin-bottom: 10px; }
+  .progress-bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .progress-bar-label span:first-child { font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+  .progress-bar-label span:last-child { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-light); }
+  .progress-bar { height: 6px; background: var(--paper-cool); border-radius: 3px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 3px; background: var(--accent-bright); transition: width 0.8s ease; }
+
+  /* SECTION TITLE */
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* FILTERS */
+  .filters-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filter-group { display: flex; gap: 6px; align-items: center; }
+  .filter-group label { font-size: 11px; color: var(--ink-light); font-weight: 500; }
+  .filter-select {
+    padding: 6px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 2px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 12px;
+    background: white;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .filter-select:focus { outline: none; border-color: var(--accent); }
+  .filter-search {
+    padding: 6px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 2px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 12px;
+    color: var(--ink);
+    min-width: 200px;
+  }
+  .filter-search:focus { outline: none; border-color: var(--accent); }
+  .filter-clear { font-size: 11px; color: var(--accent-bright); cursor: pointer; text-decoration: underline; }
+
+  /* TABLE */
+  .table-wrap {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  table.tasks { width: 100%; border-collapse: collapse; }
+  table.tasks thead { background: var(--ink); color: var(--paper); }
+  table.tasks th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  table.tasks th:hover { background: var(--ink-mid); }
+  table.tasks th .sort-arrow { opacity: 0.4; margin-left: 4px; }
+  table.tasks th.sort-asc .sort-arrow::after { content: ' ▲'; }
+  table.tasks th.sort-desc .sort-arrow::after { content: ' ▼'; }
+  table.tasks td { padding: 11px 16px; border-bottom: 1px solid rgba(0,0,0,0.05); vertical-align: middle; }
+  table.tasks tr:last-child td { border-bottom: none; }
+  table.tasks tr:hover td { background: var(--paper-cool); }
+  table.tasks tr { cursor: pointer; transition: background 0.1s; }
+
+  .tag-source {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .tag-source.planner { background: rgba(26,74,107,0.12); color: var(--planner); }
+  .tag-source.trello { background: rgba(184,150,62,0.15); color: #7a6020; }
+
+  .tag-status {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .tag-status.concluido { background: #e8f5ee; color: var(--success); }
+  .tag-status.em-andamento { background: #e8f0f8; color: var(--accent); }
+  .tag-status.atrasado { background: #fde8e8; color: var(--danger-light); }
+  .tag-status.nao-iniciado { background: #f0f0f0; color: var(--ink-light); }
+  .tag-status.outro { background: #f5f0e8; color: var(--warn); }
+
+  .tag-priority {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .tag-priority.alta { background: var(--danger-light); }
+  .tag-priority.media { background: var(--warn-light); }
+  .tag-priority.baixa { background: var(--success-light); }
+  .tag-priority.outro { background: var(--ink-light); }
+
+  .date-late { color: var(--danger-light); font-weight: 600; }
+  .date-soon { color: var(--warn-light); font-weight: 600; }
+  .date-ok { color: var(--ink-mid); }
+
+  /* MODAL TAREFA */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,25,35,0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: white;
+    border-radius: 4px;
+    padding: 40px;
+    max-width: 560px;
+    width: 90%;
+    position: relative;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+  }
+  .modal-close {
+    position: absolute;
+    top: 16px; right: 20px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--ink-light);
+    line-height: 1;
+  }
+  .modal-close:hover { color: var(--ink); }
+  .modal-source-tag { margin-bottom: 16px; }
+  .modal-title { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; margin-bottom: 20px; line-height: 1.2; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+  .modal-field label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-light); display: block; margin-bottom: 4px; }
+  .modal-field .val { font-size: 13px; color: var(--ink); }
+  .modal-desc { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .modal-desc label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-light); display: block; margin-bottom: 8px; }
+  .modal-desc .val { font-size: 13px; color: var(--ink-mid); line-height: 1.6; }
+
+  /* TABLE PAGINATION */
+  .table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--paper-cool);
+    border-top: 1px solid var(--border);
+  }
+  .table-footer span { font-size: 12px; color: var(--ink-light); }
+  .pagination { display: flex; gap: 4px; }
+  .page-btn {
+    width: 30px; height: 30px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 2px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+  }
+  .page-btn:hover { background: var(--paper-warm); }
+  .page-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+
+  /* PRINT / EXPORT */
+  @media print {
+    header { position: static; }
+    .dash-actions, .filters-bar, .btn-primary, .btn-secondary { display: none; }
+    #upload-section, #mapping-section { display: none !important; }
+    #dashboard-section { display: block !important; }
+    .modal-overlay { display: none !important; }
+  }
+
+  /* EMPTY / DEMO */
+  .demo-notice {
+    background: var(--paper-warm);
+    border: 1px solid var(--gold-light);
+    border-left: 4px solid var(--gold);
+    border-radius: 4px;
+    padding: 14px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--ink-mid);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px;
+    color: var(--ink-light);
+  }
+  .empty-state h3 { font-family: 'Fraunces', serif; font-size: 20px; margin-bottom: 8px; color: var(--ink-mid); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    main { padding: 0 20px 40px; }
+    header { padding: 16px 20px; }
+    .upload-grid { grid-template-columns: 1fr; }
+    .kpi-row { grid-template-columns: repeat(3, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .mapping-grid { grid-template-columns: 1fr 1fr; }
+    .insights-bar { grid-template-columns: 1fr; }
+  }
+
+  /* ─── NAV TABS TOPO ─── */
+  .main-nav {
+    background: var(--ink);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    gap: 0;
+    padding: 0 40px;
+  }
+  .main-nav-tab {
+    padding: 12px 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .main-nav-tab:hover { color: rgba(255,255,255,0.75); }
+  .main-nav-tab.active { color: var(--gold-light); border-bottom-color: var(--gold); }
+
+  /* ─── CHECK SEMANAL ─── */
+  #check-section { display: none; padding: 40px 0; }
+  .check-header { margin-bottom: 32px; }
+  .check-header h2 { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; margin-bottom: 4px; }
+  .check-header p { color: var(--ink-light); font-size: 13px; }
+
+  .check-input-area {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .check-input-area label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 10px;
+  }
+  .check-input-area textarea {
+    width: 100%;
+    min-height: 260px;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    padding: 14px 16px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    resize: vertical;
+    line-height: 1.7;
+    background: var(--paper-cool);
+    transition: border-color 0.2s;
+  }
+  .check-input-area textarea:focus { outline: none; border-color: var(--accent); background: white; }
+  .check-input-area textarea::placeholder { color: var(--ink-light); opacity: 0.6; }
+  .check-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+  .check-week-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-light);
+    margin-left: auto;
+  }
+
+  /* Cards do check */
+  .check-results { display: none; }
+  .check-meta-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .check-meta-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .check-meta-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+  }
+  .check-meta-card.sentimento::before { background: var(--gold); }
+  .check-meta-card.almejo::before { background: var(--accent-bright); }
+  .check-meta-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 8px;
+  }
+  .check-meta-value {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .check-lists-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  .check-list-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+  }
+  .check-list-card h4 {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .check-list-card h4 .count-badge {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 20px;
+    padding: 1px 8px;
+    font-size: 10px;
+  }
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    font-size: 13px;
+    color: var(--ink-mid);
+    line-height: 1.4;
+  }
+  .check-item:last-child { border-bottom: none; }
+  .check-item::before {
+    content: '→';
+    color: var(--gold);
+    font-size: 12px;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .check-list-card.radar .check-item::before { content: '◎'; color: var(--accent-bright); }
+
+  .check-history {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .check-history h4 {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 16px;
+  }
+  .history-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+  }
+  .history-entry:last-child { border-bottom: none; }
+  .history-entry:hover { background: var(--paper-cool); }
+  .history-entry-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+  .history-entry-meta { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-light); }
+  .history-entry-arrow { color: var(--ink-light); font-size: 12px; }
+  .history-empty { color: var(--ink-light); font-size: 13px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <h1>Central de Tarefas</h1>
+    <span>Dashboard Executivo</span>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-planner" id="badge-planner">● Planner TI Marcão</span>
+    <span class="badge badge-trello" id="badge-trello">● Trello TI Brunão</span>
+  </div>
+</header>
+
+<nav class="main-nav" id="main-nav" style="display:none">
+  <div class="main-nav-tab active" onclick="switchMainTab('dashboard')" id="navtab-dashboard">📊 Time de Tech G_Matos</div>
+  <div class="main-nav-tab" onclick="switchMainTab('check')" id="navtab-check">📋 Check Semanal Edu</div>
+</nav>
+
+<main>
+
+  <!-- ══ UPLOAD ══ -->
+  <section id="upload-section">
+    <h2 class="upload-title">Importar dados das <em>fontes</em></h2>
+    <p class="upload-subtitle">Selecione o CSV exportado do Microsoft Planner e o JSON exportado do Trello para unificar a base.</p>
+
+    <div class="upload-grid">
+      <label class="upload-card planner" id="card-planner" for="file-planner">
+        <input type="file" id="file-planner" accept=".xlsx,.xls,.csv" onchange="handlePlannerFile(event)">
+        <div class="upload-source-label">Microsoft Planner</div>
+        <h3>📋 Importar Excel do Planner</h3>
+        <p>Exporte diretamente do Planner via <strong>"Exportar para Excel"</strong> e importe o .xlsx aqui</p>
+        <div class="upload-filename" id="name-planner">—</div>
+      </label>
+
+      <label class="upload-card trello" id="card-trello" for="file-trello">
+        <input type="file" id="file-trello" accept=".json" onchange="handleTrelloFile(event)">
+        <div class="upload-source-label">Trello</div>
+        <h3>📌 Importar JSON do Trello</h3>
+        <p>No seu board: Menu (☰) → Mais → Imprimir e Exportar → <strong>Exportar como JSON</strong></p>
+        <div class="upload-filename" id="name-trello">—</div>
+      </label>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;">
+      <button class="btn-primary" id="btn-next-upload" disabled onclick="goToMapping()">
+        Gerar Dashboard →
+      </button>
+      <button class="btn-secondary" onclick="loadDemo()">Carregar dados de demonstração</button>
+    </div>
+  </section>
+
+  <!-- ══ MAPPING ══ -->
+  <section id="mapping-section">
+    <h2 class="mapping-title">Mapeamento de colunas</h2>
+    <p class="mapping-subtitle">Indique quais colunas de cada arquivo correspondem a cada campo do dashboard.</p>
+
+    <div class="mapping-tabs">
+      <div class="mapping-tab active" onclick="switchMappingTab('planner')">📋 Planner</div>
+      <div class="mapping-tab" onclick="switchMappingTab('trello')">📌 Trello</div>
+    </div>
+
+    <div class="mapping-tab-content active" id="mtab-planner">
+      <div class="mapping-grid">
+        <div class="mapping-field"><label>Título da Tarefa *</label><select id="map-planner-title"></select></div>
+        <div class="mapping-field"><label>Responsável</label><select id="map-planner-owner"></select></div>
+        <div class="mapping-field"><label>Status</label><select id="map-planner-status"></select></div>
+        <div class="mapping-field"><label>Prazo</label><select id="map-planner-due"></select></div>
+        <div class="mapping-field"><label>Prioridade</label><select id="map-planner-priority"></select></div>
+        <div class="mapping-field"><label>Descrição / Notas</label><select id="map-planner-desc"></select></div>
+      </div>
+      <div class="mapping-preview" id="preview-planner"></div>
+    </div>
+
+    <div class="mapping-tab-content" id="mtab-trello">
+      <div class="mapping-grid">
+        <div class="mapping-field"><label>Título da Tarefa *</label><select id="map-trello-title"></select></div>
+        <div class="mapping-field"><label>Responsável</label><select id="map-trello-owner"></select></div>
+        <div class="mapping-field"><label>Status</label><select id="map-trello-status"></select></div>
+        <div class="mapping-field"><label>Prazo</label><select id="map-trello-due"></select></div>
+        <div class="mapping-field"><label>Prioridade</label><select id="map-trello-priority"></select></div>
+        <div class="mapping-field"><label>Descrição / Notas</label><select id="map-trello-desc"></select></div>
+      </div>
+      <div class="mapping-preview" id="preview-trello"></div>
+    </div>
+
+    <div class="mapping-actions">
+      <button class="btn-primary" onclick="buildDashboard()">Gerar Dashboard →</button>
+      <button class="btn-secondary" onclick="goBack()">← Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══ DASHBOARD ══ -->
+  <section id="dashboard-section">
+
+    <div class="dash-header">
+      <div class="dash-header-left">
+        <h2>Visão Executiva</h2>
+        <p id="dash-date">—</p>
+      </div>
+      <div class="dash-actions">
+        <button class="btn-secondary" onclick="window.print()">🖨 Imprimir</button>
+        <button class="btn-secondary" onclick="exportCSV()">⬇ Exportar CSV</button>
+        <button class="btn-primary" onclick="openPublishModal()" style="background:var(--gold);color:var(--ink);">🚀 Publicar para Diretoria</button>
+        <button class="btn-secondary" onclick="goBack2()">← Nova importação</button>
+      </div>
+    </div>
+
+    <div id="demo-notice" class="demo-notice" style="display:none">
+      ⚠️ <span>Você está visualizando <strong>dados de demonstração</strong>. Importe seu CSV do Planner e JSON do Trello para ver dados reais.</span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi-card total"><div class="kpi-label">Total de Tarefas</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-sub" id="kpi-sources">—</div></div>
+      <div class="kpi-card done"><div class="kpi-label">Concluídas</div><div class="kpi-value" id="kpi-done">—</div><div class="kpi-sub" id="kpi-done-pct">—</div></div>
+      <div class="kpi-card prog"><div class="kpi-label">Em Andamento</div><div class="kpi-value" id="kpi-prog">—</div><div class="kpi-sub" id="kpi-prog-pct">—</div></div>
+      <div class="kpi-card late"><div class="kpi-label">Em Atraso</div><div class="kpi-value" id="kpi-late">—</div><div class="kpi-sub" id="kpi-late-sub">com prazo vencido</div></div>
+      <div class="kpi-card soon"><div class="kpi-label">Vencem em 7 dias</div><div class="kpi-value" id="kpi-soon">—</div><div class="kpi-sub" id="kpi-soon-sub">requerem atenção</div></div>
+    </div>
+
+    <!-- INSIGHTS -->
+    <div class="insights-bar" id="insights-bar"></div>
+
+    <!-- CHARTS -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <h4>Status das Tarefas</h4>
+        <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h4>Distribuição por Fonte</h4>
+        <div class="chart-wrap"><canvas id="chart-source"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h4>Prioridade</h4>
+        <div class="chart-wrap"><canvas id="chart-priority"></canvas></div>
+      </div>
+    </div>
+
+    <!-- RESPONSÁVEIS -->
+    <h3 class="section-title">Carga por Responsável</h3>
+    <div style="background:white;border:1px solid var(--border);border-radius:4px;padding:24px;margin-bottom:32px;">
+      <div id="owner-bars"></div>
+    </div>
+
+    <!-- TABLE -->
+    <h3 class="section-title">Todas as Tarefas</h3>
+
+    <div class="filters-bar">
+      <input class="filter-search" type="text" id="filter-search" placeholder="🔍 Buscar tarefa ou responsável..." oninput="applyFilters()">
+      <div class="filter-group">
+        <label>Fonte</label>
+        <select class="filter-select" id="filter-source" onchange="applyFilters()">
+          <option value="">Todas</option>
+          <option value="planner">Planner</option>
+          <option value="trello">Trello</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Status</label>
+        <select class="filter-select" id="filter-status" onchange="applyFilters()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Responsável</label>
+        <select class="filter-select" id="filter-owner" onchange="applyFilters()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Prioridade</label>
+        <select class="filter-select" id="filter-priority" onchange="applyFilters()">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <span class="filter-clear" onclick="clearFilters()">Limpar filtros</span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="tasks" id="tasks-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable('title')">Tarefa <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('owner')">Responsável <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('status')">Status <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('due')">Prazo <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('priority')">Prioridade <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('source')">Fonte <span class="sort-arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="tasks-tbody"></tbody>
+      </table>
+      <div class="table-footer">
+        <span id="table-count">—</span>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+  </section>
+
+
+  <!-- ══ CHECK SEMANAL ══ -->
+  <section id="check-section">
+    <div class="check-header">
+      <h2>Check Semanal</h2>
+      <p>Cole o texto do seu check semanal e visualize as demandas organizadas.</p>
+    </div>
+
+    <div class="check-input-area">
+      <label>Título do Check (ex: Check Semanal Edu — 01 a 05/07)</label>
+      <input type="text" id="check-title-input" placeholder="Check Semanal Edu — 01 a 05/07"
+        style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:3px;
+               font-family:'Instrument Sans',sans-serif;font-size:14px;font-weight:600;
+               color:var(--ink);background:var(--paper-cool);margin-bottom:16px;box-sizing:border-box;">
+      <label>Conteúdo do Check</label>
+      <textarea id="check-textarea" placeholder="Cole aqui o texto do seu check semanal...
+
+Sentimento da semana: Agitado
+O que almejo para semana entrante: Constância
+
+- Tarefa 1
+- Tarefa 2
+
+Ações em radar para esta semana.
+- Radar 1
+- Radar 2"></textarea>
+      <div class="check-actions">
+        <button class="btn-primary" onclick="processCheck()">Processar Check →</button>
+        <button class="btn-secondary" onclick="clearCheck()">Limpar</button>
+        <span class="check-week-label" id="check-week-label"></span>
+      </div>
+    </div>
+
+    <!-- Resultado do check atual -->
+    <div class="check-results" id="check-results">
+      <div class="check-meta-row">
+        <div class="check-meta-card sentimento">
+          <div class="check-meta-label">Sentimento da Semana</div>
+          <div class="check-meta-value" id="check-sentimento">—</div>
+        </div>
+        <div class="check-meta-card almejo">
+          <div class="check-meta-label">O que almejo para a próxima semana</div>
+          <div class="check-meta-value" id="check-almejo">—</div>
+        </div>
+      </div>
+
+      <div class="check-lists-row">
+        <div class="check-list-card" id="card-demandas">
+          <h4>Demandas da Semana <span class="count-badge" id="count-demandas">0</span></h4>
+          <div id="list-demandas"></div>
+        </div>
+        <div class="check-list-card radar" id="card-radar">
+          <h4>Ações em Radar <span class="count-badge" id="count-radar">0</span></h4>
+          <div id="list-radar"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:32px;">
+        <button class="btn-secondary" onclick="saveCheck()">💾 Salvar no Histórico</button>
+        <button class="btn-secondary" onclick="window.print()">🖨 Imprimir</button>
+      </div>
+    </div>
+
+    <!-- Histórico -->
+    <div class="check-history" id="check-history-wrap">
+      <h4>Histórico de Checks</h4>
+      <div id="check-history-list"><p class="history-empty">Nenhum check salvo ainda.</p></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- MODAL DETALHES -->
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModalBtn()">✕</button>
+    <div class="modal-source-tag"><span class="tag-source" id="modal-source-tag">—</span></div>
+    <div class="modal-title" id="modal-title">—</div>
+    <div class="modal-grid">
+      <div class="modal-field"><label>Responsável</label><div class="val" id="modal-owner">—</div></div>
+      <div class="modal-field"><label>Status</label><div class="val" id="modal-status">—</div></div>
+      <div class="modal-field"><label>Prazo</label><div class="val" id="modal-due">—</div></div>
+      <div class="modal-field"><label>Prioridade</label><div class="val" id="modal-priority">—</div></div>
+    </div>
+    <div class="modal-desc" id="modal-desc-wrap">
+      <label>Descrição / Notas</label>
+      <div class="val" id="modal-desc">—</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════
+let rawPlanner = [], rawTrello = [];
+let allTasks = [], filteredTasks = [];
+let isDemoActive = false; // flag para saber se os dados atuais são demo
+
+// Só limpa se o demo estava ativo — nunca apaga arquivo real já carregado
+function clearDemoIfActive() {
+  if (!isDemoActive) return;
+  rawPlanner = []; rawTrello = [];
+  ['planner','trello'].forEach(s => {
+    document.getElementById('card-'+s).classList.remove('loaded');
+    document.getElementById('name-'+s).textContent = '—';
+    const inp = document.getElementById('file-'+s);
+    if (inp) inp.value = '';
+  });
+  document.getElementById('btn-next-upload').disabled = true;
+  document.getElementById('demo-notice').style.display = 'none';
+  isDemoActive = false;
+}
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let sortField = '', sortDir = 1;
+let chartStatus, chartSource, chartPriority;
+
+// ════════════════════════════════════════
+//  FILE UPLOAD
+// ════════════════════════════════════════
+// Event listeners nos inputs já definidos via onchange no HTML
+
+// Planner: Excel (.xlsx) ou CSV
+function handlePlannerFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  clearDemoIfActive();
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = new Uint8Array(ev.target.result);
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+
+      // Prefere aba "Dados Consolidados", depois "Tarefas", depois a primeira
+      const abaAlvo = ['Dados Consolidados', 'Tarefas', 'tasks', 'Tasks'];
+      let sheetName = wb.SheetNames.find(n => abaAlvo.includes(n)) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+
+      // Converte para array de objetos; datas como strings ISO
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if (!rows.length) {
+        alert('Nenhuma linha encontrada na aba "' + sheetName + '". Verifique o arquivo.');
+        return;
+      }
+
+      // Mapeia para campos padronizados usando as colunas reais do Planner PT-BR
+      const col = (row, ...candidates) => {
+        for (const c of candidates) {
+          if (row[c] !== undefined && row[c] !== '') return String(row[c]);
+        }
+        return '';
+      };
+
+      rawPlanner = rows.map((r, i) => ({
+        id: 'P' + i,
+        source: 'planner',
+        title:       col(r, 'Nome da tarefa', 'Task Name', 'Title', 'Titulo', 'title', 'name'),
+        owner:       col(r, 'Atribuído a', 'Assigned To', 'Responsavel', 'owner', 'members'),
+        statusRaw:   col(r, 'Status', 'status', 'Estado'),
+        dueRaw:      col(r, 'Data de conclusão', 'Due Date', 'Prazo', 'due', 'deadline'),
+        priorityRaw: col(r, 'Prioridade', 'Priority', 'priority'),
+        desc:        col(r, 'Notas', 'Notes', 'Descrição', 'desc', 'description'),
+        _raw: r
+      })).filter(t => t.title); // descarta linhas sem título
+
+      document.getElementById('card-planner').classList.add('loaded');
+      document.getElementById('name-planner').textContent =
+        file.name + ' (' + rawPlanner.length + ' tarefas — aba: ' + sheetName + ')';
+      checkUploadReady();
+
+    } catch(err) {
+      console.error(err);
+      alert('Erro ao ler o arquivo do Planner: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Trello: JSON nativo exportado pelo Trello Free
+function handleTrelloFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  // Limpa qualquer dado anterior (demo ou importação anterior)
+  clearDemoIfActive();
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const raw = ev.target.result.trim();
+
+      // Detecta se o usuário salvou a página HTML ao invés do JSON
+      if (raw.startsWith('<') || raw.toLowerCase().startsWith('<!doctype')) {
+        showTrelloError(
+          '⚠️ Arquivo HTML detectado — isso não é o JSON do Trello.',
+          'Você salvou a página web do Trello ao invés do arquivo de exportação. Siga o passo a passo abaixo para exportar corretamente.'
+        );
+        return;
+      }
+
+      const json = JSON.parse(raw);
+
+      // Valida que é de fato um export de board do Trello
+      if (!json.cards && !json.lists) {
+        showTrelloError(
+          '⚠️ JSON não reconhecido como export de board Trello.',
+          'O arquivo JSON não contém a estrutura esperada (cards/lists). Certifique-se de exportar o board pelo caminho: Menu (☰) → Mais → Imprimir e Exportar → Exportar como JSON.'
+        );
+        return;
+      }
+
+      rawTrello = parseTrelloJSON(json);
+      if (!rawTrello.length) {
+        showTrelloError(
+          '⚠️ Nenhum cartão ativo encontrado.',
+          'O board exportado não possui cartões visíveis (podem estar todos arquivados). Verifique o board e tente novamente.'
+        );
+        return;
+      }
+
+      // Limpa qualquer mensagem de erro anterior
+      const errBox = document.getElementById('trello-upload-error');
+      if (errBox) errBox.remove();
+
+      document.getElementById('card-trello').classList.add('loaded');
+      document.getElementById('name-trello').textContent = `${file.name} (${rawTrello.length} cartões)`;
+      checkUploadReady();
+
+    } catch(err) {
+      showTrelloError(
+        '⚠️ Não foi possível ler o arquivo.',
+        'O arquivo não é um JSON válido. Certifique-se de exportar pelo caminho correto dentro do Trello.'
+      );
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// Converte o JSON nativo do Trello em array de objetos planos
+function parseTrelloJSON(json) {
+  // Mapeia listas: id -> { name, closed }
+  const lists = {};
+  (json.lists || []).forEach(l => { lists[l.id] = { name: l.name, closed: l.closed }; });
+
+  // Mapeia membros: id -> fullName
+  const members = {};
+  (json.members || []).forEach(m => { members[m.id] = m.fullName || m.username || m.id; });
+
+  // Filtra apenas cartões não arquivados
+  const cards = (json.cards || []).filter(c => !c.closed);
+
+  return cards.map(card => {
+    // Responsáveis
+    const ownerNames = (card.idMembers || []).map(id => members[id] || id).join(', ') || '—';
+
+    // Labels: nome ou cor
+    const labelNames = (card.labels || []).map(lb => lb.name || lb.color || '').filter(Boolean).join(', ') || '';
+
+    // Lista / coluna do board
+    const listInfo = lists[card.idList] || {};
+    const listName = listInfo.name || card.idList || '';
+
+    // Status efetivo: dueComplete=true -> Concluído; senão usa o nome da lista
+    const effectiveStatus = card.dueComplete ? 'Concluído' : listName;
+
+    // Prazo: ISO -> YYYY-MM-DD
+    const dueDate = card.due ? card.due.split('T')[0] : '';
+
+    return {
+      name:     card.name || 'Sem título',
+      members:  ownerNames,
+      list:     effectiveStatus,
+      listRaw:  listName,
+      due:      dueDate,
+      labels:   labelNames,
+      desc:     card.desc || '',
+      shortUrl: card.shortUrl || '',
+      idCard:   card.id || ''
+    };
+  });
+}
+
+function checkUploadReady() {
+  const ok = rawPlanner.length > 0 || rawTrello.length > 0;
+  document.getElementById('btn-next-upload').disabled = !ok;
+}
+
+// Exibe erro detalhado com passo a passo embaixo do upload-grid
+function showTrelloError(title, detail) {
+  const existing = document.getElementById('trello-upload-error');
+  if (existing) existing.remove();
+
+  document.getElementById('card-trello').classList.remove('loaded');
+
+  const box = document.createElement('div');
+  box.id = 'trello-upload-error';
+  box.style.cssText = `
+    background: #fff8f0;
+    border: 1.5px solid #e67e22;
+    border-left: 4px solid #e67e22;
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: #0f1923;
+  `;
+  box.innerHTML = `
+    <div style="font-weight:700;color:#c0392b;margin-bottom:6px;font-size:14px;">${title}</div>
+    <div style="color:#4a5d6e;margin-bottom:16px;">${detail}</div>
+    <div style="font-weight:600;margin-bottom:10px;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;color:#2a3a4a;">Como exportar o JSON correto do Trello Free:</div>
+    <ol style="padding-left:18px;display:flex;flex-direction:column;gap:6px;color:#2a3a4a;font-size:13px;">
+      <li>Abra o <strong>board</strong> desejado no Trello</li>
+      <li>Clique no ícone <strong>☰ Menu</strong> no canto superior direito do board</li>
+      <li>Clique em <strong>"Mais"</strong></li>
+      <li>Clique em <strong>"Imprimir e Exportar"</strong></li>
+      <li>Clique em <strong>"Exportar como JSON"</strong></li>
+      <li>O navegador vai abrir uma página com texto JSON — pressione <strong>Ctrl+S</strong> (ou Cmd+S no Mac) e salve como <code>.json</code></li>
+      <li>Importe esse arquivo aqui</li>
+    </ol>
+    <div style="margin-top:12px;background:#fff3e0;border-radius:3px;padding:8px 12px;font-size:12px;color:#7a5c1e;">
+      ⚡ <strong>Dica:</strong> Na etapa 6, quando a página com JSON abrir, não use "Salvar página como" pelo menu do browser — use <strong>Ctrl+S direto no teclado</strong> para garantir que salva o conteúdo JSON puro.
+    </div>
+  `;
+
+  const grid = document.querySelector('.upload-grid');
+  grid.after(box);
+}
+
+// ════════════════════════════════════════
+//  DEMO DATA
+// ════════════════════════════════════════
+function loadDemo() {
+  const today = new Date();
+  const d = (offset) => {
+    const dt = new Date(today);
+    dt.setDate(dt.getDate() + offset);
+    return dt.toISOString().split('T')[0];
+  };
+
+  rawPlanner = [
+    {Titulo:'Revisão do plano estratégico Q3',Responsavel:'Ana Lima',Status:'Em andamento',Prazo:d(5),Prioridade:'Alta',Descricao:'Revisão completa do roadmap com diretores.'},
+    {Titulo:'Relatório financeiro maio',Responsavel:'Carlos Melo',Status:'Concluído',Prazo:d(-2),Prioridade:'Alta',Descricao:''},
+    {Titulo:'Atualização do site institucional',Responsavel:'Beatriz Costa',Status:'Não iniciado',Prazo:d(14),Prioridade:'Média',Descricao:'Nova landing page com novo branding.'},
+    {Titulo:'Onboarding novos colaboradores',Responsavel:'Ana Lima',Status:'Em andamento',Prazo:d(3),Prioridade:'Média',Descricao:''},
+    {Titulo:'Auditoria de segurança da TI',Responsavel:'Rafael Torres',Status:'Atrasado',Prazo:d(-7),Prioridade:'Alta',Descricao:'Análise de vulnerabilidades.'},
+    {Titulo:'Campanha de marketing Q3',Responsavel:'Beatriz Costa',Status:'Não iniciado',Prazo:d(20),Prioridade:'Média',Descricao:''},
+    {Titulo:'Renovação de contratos fornecedores',Responsavel:'Carlos Melo',Status:'Concluído',Prazo:d(-10),Prioridade:'Alta',Descricao:''},
+    {Titulo:'Treinamento de liderança',Responsavel:'Ana Lima',Status:'Em andamento',Prazo:d(8),Prioridade:'Baixa',Descricao:''},
+    {Titulo:'Definição de metas de vendas',Responsavel:'Rafael Torres',Status:'Concluído',Prazo:d(-5),Prioridade:'Alta',Descricao:''},
+    {Titulo:'Atualização de políticas internas',Responsavel:'Beatriz Costa',Status:'Não iniciado',Prazo:d(30),Prioridade:'Baixa',Descricao:''},
+  ];
+
+  rawTrello = [
+    {name:'Redesign do app mobile',members:'Lucas Faria',list:'Em Progresso',due:d(6),labels:'Alta',desc:'Fluxo completo de checkout e perfil.'},
+    {name:'Integração com ERP',members:'Juliana Ramos',list:'Bloqueado',due:d(-3),labels:'Alta',desc:''},
+    {name:'Documentar APIs internas',members:'Lucas Faria',list:'A fazer',due:d(15),labels:'Média',desc:''},
+    {name:'Sprint planning agosto',members:'Juliana Ramos',list:'Concluído',due:d(-8),labels:'Média',desc:''},
+    {name:'Correção de bugs produção',members:'Pedro Alves',list:'Em Progresso',due:d(2),labels:'Alta',desc:'Bugs críticos no fluxo de pagamento.'},
+    {name:'Migração para cloud AWS',members:'Lucas Faria',list:'A fazer',due:d(45),labels:'Alta',desc:''},
+    {name:'Setup monitoramento Datadog',members:'Pedro Alves',list:'Concluído',due:d(-15),labels:'Baixa',desc:''},
+    {name:'Revisão de permissões usuários',members:'Juliana Ramos',list:'A fazer',due:d(10),labels:'Média',desc:''},
+    {name:'Testes de carga servidor',members:'Pedro Alves',list:'Em Progresso',due:d(4),labels:'Alta',desc:''},
+    {name:'Manual do produto v2',members:'Lucas Faria',list:'A fazer',due:d(25),labels:'Baixa',desc:''},
+  ];
+
+  isDemoActive = true;
+  document.getElementById('demo-notice').style.display = 'flex';
+  document.getElementById('card-planner').classList.add('loaded');
+  document.getElementById('name-planner').textContent = 'demo_planner.csv (10 tarefas)';
+  document.getElementById('card-trello').classList.add('loaded');
+  document.getElementById('name-trello').textContent = 'demo_trello.json (10 cartões)';
+  document.getElementById('btn-next-upload').disabled = false;
+
+  // Normaliza campos do demo para o formato esperado pelo buildUnified
+  rawPlanner = rawPlanner.map((r, i) => ({
+    id: 'P'+i, source:'planner',
+    title: r.Titulo, owner: r.Responsavel, statusRaw: r.Status,
+    dueRaw: r.Prazo, priorityRaw: r.Prioridade, desc: r.Descricao, _raw: r
+  }));
+  rawTrello = rawTrello.map((r, i) => ({
+    name: r.name, members: r.members, list: r.list,
+    due: r.due, labels: r.labels, desc: r.desc
+  }));
+  buildUnified();
+  showSection('dashboard');
+  renderDashboard();
+}
+
+// ════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════
+function showSection(s) {
+  ['upload','mapping','dashboard'].forEach(id => {
+    document.getElementById(id+'-section').style.display = id===s ? (id==='dashboard'?'block':'') : 'none';
+  });
+  if (s==='dashboard') {
+    document.getElementById('dashboard-section').style.display = 'block';
+    document.getElementById('check-section').style.display = 'none';
+    showMainNav();
+  }
+  if (s==='mapping') document.getElementById('mapping-section').style.display = 'block';
+  if (s==='upload') {
+    document.getElementById('upload-section').style.display = 'block';
+    document.getElementById('main-nav').style.display = 'none';
+    document.getElementById('check-section').style.display = 'none';
+  }
+}
+
+function goToMapping() {
+  // Ambas as fontes já vêm pré-processadas pelos handlers — vai direto ao dashboard
+  buildUnified();
+  showSection('dashboard');
+  renderDashboard();
+}
+function goBack() { showSection('upload'); }
+function goBack2() {
+  // Limpa dados e demo ao voltar para nova importação
+  rawPlanner = []; rawTrello = []; allTasks = []; filteredTasks = [];
+  ['planner','trello'].forEach(s => {
+    document.getElementById('card-'+s).classList.remove('loaded');
+    document.getElementById('name-'+s).textContent = '—';
+    const inp = document.getElementById('file-'+s);
+    if (inp) inp.value = '';
+  });
+  document.getElementById('btn-next-upload').disabled = true;
+  document.getElementById('demo-notice').style.display = 'none';
+  const errBox = document.getElementById('trello-upload-error');
+  if (errBox) errBox.remove();
+  showSection('upload');
+}
+
+// ════════════════════════════════════════
+//  MAPPING
+// ════════════════════════════════════════
+function populateMappingSelects() {
+  const fillSelects = (source, data) => {
+    if (!data.length) return;
+    const cols = Object.keys(data[0]);
+    const fields = ['title','owner','status','due','priority','desc'];
+    const guesses = {
+      title: ['title','titulo','name','nome','task','tarefa','card'],
+      owner: ['owner','responsavel','assignee','member','members','assigned','atribuido'],
+      status: ['status','list','lista','estado','coluna'],
+      due: ['due','prazo','deadline','data','date','vencimento','duedate'],
+      priority: ['priority','prioridade','labels','label','urgencia'],
+      desc: ['desc','description','descricao','notes','notas','note','body']
+    };
+    fields.forEach(f => {
+      const el = document.getElementById(`map-${source}-${f}`);
+      el.innerHTML = '<option value="">— não mapear —</option>';
+      cols.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        el.appendChild(opt);
+      });
+      const match = cols.find(c => guesses[f].some(g => c.toLowerCase().includes(g)));
+      if (match) el.value = match;
+    });
+    renderMappingPreview(source, data);
+  };
+  fillSelects('planner', rawPlanner);
+  fillSelects('trello', rawTrello);
+  ['planner','trello'].forEach(s => {
+    ['title','owner','status','due','priority','desc'].forEach(f => {
+      document.getElementById(`map-${s}-${f}`).addEventListener('change', () => {
+        renderMappingPreview(s, s==='planner'?rawPlanner:rawTrello);
+      });
+    });
+  });
+}
+
+function renderMappingPreview(source, data) {
+  const wrap = document.getElementById('preview-'+source);
+  const rows = data.slice(0,4);
+  const fields = ['title','owner','status','due','priority'];
+  const cols = fields.map(f => ({f, label:f.charAt(0).toUpperCase()+f.slice(1), col: document.getElementById(`map-${source}-${f}`)?.value}));
+  let html = '<table><thead><tr>' + cols.map(c=>`<th>${c.label}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(row => {
+    html += '<tr>' + cols.map(c => `<td>${c.col ? (row[c.col]||'—') : '<span style="color:#bbb">não mapeado</span>'}</td>`).join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function switchMappingTab(t) {
+  document.querySelectorAll('.mapping-tab').forEach((el,i) => el.classList.toggle('active', ['planner','trello'][i]===t));
+  document.querySelectorAll('.mapping-tab-content').forEach((el,i) => el.classList.toggle('active', ['mtab-planner','mtab-trello'][i]==='mtab-'+t));
+}
+
+function getMap(source) {
+  const fields = ['title','owner','status','due','priority','desc'];
+  const m = {};
+  fields.forEach(f => { m[f] = document.getElementById(`map-${source}-${f}`)?.value || ''; });
+  return m;
+}
+
+// ════════════════════════════════════════
+//  BUILD UNIFIED
+// ════════════════════════════════════════
+function buildDashboard() {
+  buildUnified();
+  showSection('dashboard');
+  renderDashboard();
+}
+
+function buildUnified() {
+  const normalize = (val) => {
+    if (!val) return '';
+    const v = val.toString().toLowerCase().trim();
+    if (['concluido','concluído','done','complete','completed','arquivado','closed','finalizado'].some(x=>v.includes(x))) return 'concluído';
+    if (['andamento','progresso','progress','doing','em progresso','em andamento','in progress'].some(x=>v.includes(x))) return 'em-andamento';
+    if (['bloqueado','blocked','paused','aguardando'].some(x=>v.includes(x))) return 'atrasado';
+    if (['nao iniciado','não iniciado','to do','a fazer','todo','backlog','new','aberto','pendente'].some(x=>v.includes(x))) return 'nao-iniciado';
+    return 'outro';
+  };
+  const normPriority = (val) => {
+    if (!val) return 'outro';
+    const v = val.toString().toLowerCase().trim();
+    if (['alta','high','urgent','urgente','critica','crítica'].some(x=>v.includes(x))) return 'alta';
+    if (['media','média','medium','normal'].some(x=>v.includes(x))) return 'media';
+    if (['baixa','low','minor'].some(x=>v.includes(x))) return 'baixa';
+    return 'outro';
+  };
+  const parseDate = (val) => {
+    if (!val) return null;
+    try {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return d;
+    } catch(e) {}
+    return null;
+  };
+
+  // Planner: já vem pré-processado pelo handlePlannerFile com campos: title, owner, statusRaw, dueRaw, priorityRaw, desc
+  const plannerTasks = rawPlanner.map((r, i) => ({
+    id:          'P' + i,
+    source:      'planner',
+    title:       r.title || 'Sem título',
+    owner:       'Marco Aurelio Albano Silva',
+    statusRaw:   r.statusRaw || '',
+    status:      normalize(r.statusRaw),
+    dueRaw:      r.dueRaw || '',
+    due:         parseDate(r.dueRaw),
+    priorityRaw: r.priorityRaw || '',
+    priority:    normPriority(r.priorityRaw),
+    desc:        r.desc || '',
+    _raw:        r._raw || r
+  }));
+
+  // Trello: já vem pré-processado pelo parseTrelloJSON com campos: name, members, list, due, labels, desc
+  const trelloTasks = rawTrello.map((r, i) => ({
+    id:          'T' + i,
+    source:      'trello',
+    title:       r.name || 'Sem título',
+    owner:       'Bruno de Luca Rezende David',
+    statusRaw:   r.list || '',
+    status:      normalize(r.list),
+    dueRaw:      r.due || '',
+    due:         parseDate(r.due),
+    priorityRaw: r.labels || '',
+    priority:    normPriority(r.labels),
+    desc:        r.desc || '',
+    _raw:        r
+  }));
+
+  allTasks = [...plannerTasks, ...trelloTasks];
+  filteredTasks = [...allTasks];
+}
+
+
+// ════════════════════════════════════════
+//  RENDER DASHBOARD
+// ════════════════════════════════════════
+function renderDashboard() {
+  const now = new Date();
+  document.getElementById('dash-date').textContent =
+    `Atualizado em ${now.toLocaleDateString('pt-BR', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}`;
+
+  const total = allTasks.length;
+  const done = allTasks.filter(t=>t.status==='concluído').length;
+  const prog = allTasks.filter(t=>t.status==='em-andamento').length;
+  const late = allTasks.filter(t=>t.due && t.due < now && t.status!=='concluído').length;
+  const soon = allTasks.filter(t=>{
+    if (!t.due || t.status==='concluído') return false;
+    const diff = (t.due - now) / 86400000;
+    return diff >= 0 && diff <= 7;
+  }).length;
+  const plCount = allTasks.filter(t=>t.source==='planner').length;
+  const trCount = allTasks.filter(t=>t.source==='trello').length;
+
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('kpi-sources').textContent = `${plCount} Planner · ${trCount} Trello`;
+  document.getElementById('kpi-done').textContent = done;
+  document.getElementById('kpi-done-pct').textContent = total ? `${Math.round(done/total*100)}% do total` : '—';
+  document.getElementById('kpi-prog').textContent = prog;
+  document.getElementById('kpi-prog-pct').textContent = total ? `${Math.round(prog/total*100)}% do total` : '—';
+  document.getElementById('kpi-late').textContent = late;
+  document.getElementById('kpi-soon').textContent = soon;
+
+  // INSIGHTS
+  const insights = [];
+  if (late > 0) insights.push({type:'danger', icon:'🚨', title:`${late} tarefa${late>1?'s':''} em atraso`, desc:'Requerem ação imediata da gestão'});
+  if (soon > 0) insights.push({type:'warn', icon:'⏰', title:`${soon} tarefa${soon>1?'s':''} vencem em 7 dias`, desc:'Monitore o progresso desta semana'});
+  if (done > 0) insights.push({type:'success', icon:'✅', title:`${Math.round(done/total*100)}% de conclusão`, desc:'Taxa geral de tarefas finalizadas'});
+  const highPrio = allTasks.filter(t=>t.priority==='alta' && t.status!=='concluído').length;
+  if (highPrio > 0) insights.push({type:'info', icon:'🎯', title:`${highPrio} tarefa${highPrio>1?'s':''} de alta prioridade abertas`, desc:'Itens críticos ainda em execução'});
+  // preenche sempre 3
+  while (insights.length < 3) insights.push({type:'info', icon:'📊', title:'Base unificada ativa', desc:`${total} tarefas de ${[plCount&&'Planner',trCount&&'Trello'].filter(Boolean).join(' e ')}`});
+  const ib = document.getElementById('insights-bar');
+  ib.innerHTML = insights.slice(0,3).map(ins=>
+    `<div class="insight-card ${ins.type}">
+      <div class="insight-icon">${ins.icon}</div>
+      <div class="insight-title">${ins.title}</div>
+      <div class="insight-desc">${ins.desc}</div>
+    </div>`
+  ).join('');
+
+  // CHARTS
+  renderCharts(total, done, prog, late, plCount, trCount);
+
+  // OWNER BARS
+  renderOwnerBars();
+
+  // FILTERS POPULATE
+  populateFilterOptions();
+
+  // TABLE
+  applyFilters();
+}
+
+function renderCharts(total, done, prog, late, plCount, trCount) {
+  const notStarted = allTasks.filter(t=>t.status==='nao-iniciado').length;
+  const other = allTasks.filter(t=>t.status==='outro').length;
+
+  const palette = {
+    done: '#27ae60', prog: '#1e6fa8', late: '#c0392b', notStarted: '#95a5a6', other: '#d4b06a'
+  };
+
+  if (chartStatus) chartStatus.destroy();
+  if (chartSource) chartSource.destroy();
+  if (chartPriority) chartPriority.destroy();
+
+  const doughnutOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { font:{size:11}, padding: 10, usePointStyle: true } } }
+  };
+
+  chartStatus = new Chart(document.getElementById('chart-status'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Concluído','Em andamento','Atrasado','Não iniciado','Outro'],
+      datasets: [{
+        data: [done, prog, late, notStarted, other],
+        backgroundColor: [palette.done, palette.prog, palette.late, palette.notStarted, palette.other],
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: doughnutOpts
+  });
+
+  chartSource = new Chart(document.getElementById('chart-source'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Planner','Trello'],
+      datasets: [{
+        data: [plCount, trCount],
+        backgroundColor: ['#1a4a6b','#b8963e'],
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: doughnutOpts
+  });
+
+  const alta = allTasks.filter(t=>t.priority==='alta').length;
+  const media = allTasks.filter(t=>t.priority==='media').length;
+  const baixa = allTasks.filter(t=>t.priority==='baixa').length;
+  const pOther = allTasks.filter(t=>t.priority==='outro').length;
+
+  chartPriority = new Chart(document.getElementById('chart-priority'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Alta','Média','Baixa','Outros'],
+      datasets: [{
+        data: [alta, media, baixa, pOther],
+        backgroundColor: ['#c0392b','#e67e22','#27ae60','#95a5a6'],
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: doughnutOpts
+  });
+}
+
+function renderOwnerBars() {
+  const counts = {};
+  allTasks.forEach(t => {
+    const o = t.owner || '—';
+    if (!counts[o]) counts[o] = {total:0, done:0};
+    counts[o].total++;
+    if (t.status==='concluído') counts[o].done++;
+  });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1].total-a[1].total).slice(0,10);
+  const wrap = document.getElementById('owner-bars');
+  wrap.innerHTML = sorted.map(([name,c]) => {
+    const pct = Math.round(c.done/c.total*100);
+    return `<div class="progress-bar-wrap">
+      <div class="progress-bar-label">
+        <span>${name}</span>
+        <span>${c.done}/${c.total} · ${pct}%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
+//  FILTERS & TABLE
+// ════════════════════════════════════════
+function populateFilterOptions() {
+  const statuses = [...new Set(allTasks.map(t=>t.statusRaw).filter(Boolean))];
+  const owners = [...new Set(allTasks.map(t=>t.owner).filter(x=>x&&x!=='—'))].sort();
+  const priorities = [...new Set(allTasks.map(t=>t.priorityRaw).filter(Boolean))];
+
+  const fs = document.getElementById('filter-status');
+  fs.innerHTML = '<option value="">Todos</option>' + statuses.map(s=>`<option value="${s}">${s}</option>`).join('');
+  const fo = document.getElementById('filter-owner');
+  fo.innerHTML = '<option value="">Todos</option>' + owners.map(o=>`<option value="${o}">${o}</option>`).join('');
+  const fp = document.getElementById('filter-priority');
+  fp.innerHTML = '<option value="">Todas</option>' + priorities.map(p=>`<option value="${p}">${p}</option>`).join('');
+}
+
+function applyFilters() {
+  const search = document.getElementById('filter-search').value.toLowerCase();
+  const source = document.getElementById('filter-source').value;
+  const status = document.getElementById('filter-status').value;
+  const owner = document.getElementById('filter-owner').value;
+  const priority = document.getElementById('filter-priority').value;
+
+  filteredTasks = allTasks.filter(t => {
+    if (search && !t.title.toLowerCase().includes(search) && !t.owner.toLowerCase().includes(search)) return false;
+    if (source && t.source !== source) return false;
+    if (status && t.statusRaw !== status) return false;
+    if (owner && t.owner !== owner) return false;
+    if (priority && t.priorityRaw !== priority) return false;
+    return true;
+  });
+
+  currentPage = 1;
+  renderTable();
+}
+
+function clearFilters() {
+  document.getElementById('filter-search').value = '';
+  document.getElementById('filter-source').value = '';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-owner').value = '';
+  document.getElementById('filter-priority').value = '';
+  applyFilters();
+}
+
+let _sortField = '', _sortDir = 1;
+function sortTable(field) {
+  if (_sortField === field) _sortDir *= -1;
+  else { _sortField = field; _sortDir = 1; }
+  document.querySelectorAll('table.tasks th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (th.getAttribute('onclick') === `sortTable('${field}')`) {
+      th.classList.add(_sortDir === 1 ? 'sort-asc' : 'sort-desc');
+    }
+  });
+  filteredTasks.sort((a,b) => {
+    let av = a[field], bv = b[field];
+    if (field === 'due') { av = a.due ? a.due.getTime() : Infinity; bv = b.due ? b.due.getTime() : Infinity; }
+    else { av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase(); }
+    if (av < bv) return -_sortDir;
+    if (av > bv) return _sortDir;
+    return 0;
+  });
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const now = new Date();
+  const start = (currentPage-1)*PAGE_SIZE;
+  const page = filteredTasks.slice(start, start+PAGE_SIZE);
+
+  const statusLabel = { 'concluído':'Concluído','em-andamento':'Em andamento','atrasado':'Atrasado','nao-iniciado':'Não iniciado','outro':'Outro' };
+  const priorityLabel = { 'alta':'Alta','media':'Média','baixa':'Baixa','outro':'—' };
+
+  const tbody = document.getElementById('tasks-tbody');
+  tbody.innerHTML = page.map((t,i) => {
+    const due = t.due;
+    let dueStr = '—', dueClass = '';
+    if (due) {
+      dueStr = due.toLocaleDateString('pt-BR');
+      const diff = (due - now) / 86400000;
+      if (diff < 0 && t.status !== 'concluído') dueClass = 'date-late';
+      else if (diff >= 0 && diff <= 7 && t.status !== 'concluído') dueClass = 'date-soon';
+      else dueClass = 'date-ok';
+    }
+    return `<tr onclick="openModal(${start+i})">
+      <td style="font-weight:500;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.title)}</td>
+      <td>${escHtml(t.owner)}</td>
+      <td><span class="tag-status ${t.status}">${statusLabel[t.status]||t.statusRaw}</span></td>
+      <td><span class="${dueClass}">${dueStr}</span></td>
+      <td><span class="tag-priority ${t.priority}"></span>${priorityLabel[t.priority]||t.priorityRaw||'—'}</td>
+      <td><span class="tag-source ${t.source}">${t.source==='planner'?'Planner':'Trello'}</span></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="6" class="empty-state"><h3>Nenhuma tarefa encontrada</h3></td></tr>`;
+
+  document.getElementById('table-count').textContent =
+    `${filteredTasks.length} tarefa${filteredTasks.length!==1?'s':''} (mostrando ${start+1}–${Math.min(start+PAGE_SIZE, filteredTasks.length)})`;
+
+  renderPagination();
+}
+
+function renderPagination() {
+  const total = Math.ceil(filteredTasks.length / PAGE_SIZE);
+  const pag = document.getElementById('pagination');
+  if (total <= 1) { pag.innerHTML = ''; return; }
+  let html = '';
+  if (currentPage > 1) html += `<button class="page-btn" onclick="goPage(${currentPage-1})">‹</button>`;
+  for (let i = Math.max(1,currentPage-2); i <= Math.min(total,currentPage+2); i++) {
+    html += `<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  if (currentPage < total) html += `<button class="page-btn" onclick="goPage(${currentPage+1})">›</button>`;
+  pag.innerHTML = html;
+}
+
+function goPage(p) { currentPage = p; renderTable(); }
+
+// ════════════════════════════════════════
+//  MODAL
+// ════════════════════════════════════════
+function openModal(idx) {
+  const t = filteredTasks[idx];
+  if (!t) return;
+  const now = new Date();
+  document.getElementById('modal-source-tag').textContent = t.source === 'planner' ? 'Planner' : 'Trello';
+  document.getElementById('modal-source-tag').className = 'tag-source ' + t.source;
+  document.getElementById('modal-title').textContent = t.title;
+  document.getElementById('modal-owner').textContent = t.owner || '—';
+  document.getElementById('modal-status').innerHTML = `<span class="tag-status ${t.status}">${t.statusRaw || '—'}</span>`;
+  let dueStr = '—';
+  if (t.due) {
+    dueStr = t.due.toLocaleDateString('pt-BR', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const diff = Math.round((t.due - now) / 86400000);
+    if (diff < 0 && t.status !== 'concluído') dueStr += ` <span style="color:var(--danger-light);font-size:11px">(${Math.abs(diff)} dias em atraso)</span>`;
+    else if (diff >= 0) dueStr += ` <span style="color:var(--ink-light);font-size:11px">(em ${diff} dias)</span>`;
+  }
+  document.getElementById('modal-due').innerHTML = dueStr;
+  document.getElementById('modal-priority').textContent = t.priorityRaw || '—';
+  const descWrap = document.getElementById('modal-desc-wrap');
+  if (t.desc) { descWrap.style.display='block'; document.getElementById('modal-desc').textContent = t.desc; }
+  else descWrap.style.display = 'none';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(e) { if (e.target.id==='modal') closeModalBtn(); }
+function closeModalBtn() { document.getElementById('modal').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeModalBtn(); });
+
+// ════════════════════════════════════════
+//  EXPORT CSV
+// ════════════════════════════════════════
+function exportCSV() {
+  const header = ['Fonte','Título','Responsável','Status','Prazo','Prioridade'];
+  const rows = filteredTasks.map(t => [
+    t.source, t.title, t.owner, t.statusRaw,
+    t.due ? t.due.toLocaleDateString('pt-BR') : '',
+    t.priorityRaw
+  ]);
+  const csv = [header, ...rows].map(r => r.map(c => `"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.download = `tarefas_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════
+function escHtml(s) {
+  return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
+// ════════════════════════════════════════
+//  CHECK SEMANAL
+// ════════════════════════════════════════
+let checkHistory = [];
+
+function switchMainTab(tab) {
+  // Esconde tudo
+  document.getElementById('dashboard-section').style.display = 'none';
+  document.getElementById('check-section').style.display = 'none';
+  // Mostra o selecionado
+  document.getElementById(tab + '-section').style.display = 'block';
+  // Atualiza tabs
+  document.querySelectorAll('.main-nav-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('navtab-' + tab).classList.add('active');
+}
+
+function showMainNav() {
+  document.getElementById('main-nav').style.display = 'flex';
+}
+
+function processCheck() {
+  const raw = document.getElementById('check-textarea').value.trim();
+  const title = document.getElementById('check-title-input').value.trim();
+  if (!raw) { alert('Cole o texto do check semanal primeiro.'); return; }
+
+  // Extrai sentimento
+  const sentMatch = raw.match(/sentimento da semana\s*[:\-]\s*(.+)/i);
+  const sentimento = sentMatch ? sentMatch[1].trim() : '—';
+
+  // Extrai almejo
+  const almejoMatch = raw.match(/(?:o que almejo[^:]*|almejo|para a? semana entrante|para a? pr[oó]xima semana)\s*[:\-]\s*(.+)/i);
+  const almejo = almejoMatch ? almejoMatch[1].trim() : '—';
+
+  // Separa blocos: demandas principais vs radar
+  const radarIdx = raw.search(/a[çc][oõ]es? em radar/i);
+  const mainBlock = radarIdx >= 0 ? raw.slice(0, radarIdx) : raw;
+  const radarBlock = radarIdx >= 0 ? raw.slice(radarIdx) : '';
+
+  // Extrai itens de lista (linhas com - ou • ou ⁠-)
+  const extractItems = (block) => {
+    return block.split('\n')
+      .map(l => l.replace(/^[\s\u2060\u200b\u200c\u00a0⁠​\-•–—●•◦▸▹→\*]+/, '').trim())
+      .filter(l => l.length > 3
+        && !/sentimento da semana/i.test(l)
+        && !/almejo/i.test(l)
+        && !/semana entrante/i.test(l)
+        && !/pr[oó]xima semana/i.test(l)
+        && !/a[çc][oõ]es? em radar/i.test(l)
+        && !/check semanal/i.test(l)
+      );
+  };
+
+  const demandas = extractItems(mainBlock);
+  const radar = extractItems(radarBlock);
+
+  // Preenche UI
+  document.getElementById('check-sentimento').textContent = sentimento;
+  document.getElementById('check-almejo').textContent = almejo;
+
+  document.getElementById('count-demandas').textContent = demandas.length;
+  document.getElementById('list-demandas').innerHTML = demandas.map(d =>
+    `<div class="check-item">${escHtml(d)}</div>`
+  ).join('') || '<div class="check-item" style="color:var(--ink-light)">Nenhuma demanda identificada</div>';
+
+  document.getElementById('count-radar').textContent = radar.length;
+  document.getElementById('list-radar').innerHTML = radar.map(r =>
+    `<div class="check-item">${escHtml(r)}</div>`
+  ).join('') || '<div class="check-item" style="color:var(--ink-light)">Nenhuma ação em radar identificada</div>';
+
+  // Atualiza label do título
+  if (title) document.getElementById('check-week-label').textContent = title;
+
+  document.getElementById('check-results').style.display = 'block';
+  document.getElementById('check-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function saveCheck() {
+  const title = document.getElementById('check-title-input').value.trim() || 'Check sem título';
+  const raw = document.getElementById('check-textarea').value.trim();
+  if (!raw) return;
+
+  const entry = {
+    id: Date.now(),
+    title,
+    date: new Date().toLocaleDateString('pt-BR'),
+    raw
+  };
+  checkHistory.unshift(entry);
+  renderCheckHistory();
+
+  // Feedback visual
+  const btn = event.target;
+  btn.textContent = '✅ Salvo!';
+  setTimeout(() => { btn.textContent = '💾 Salvar no Histórico'; }, 2000);
+}
+
+function renderCheckHistory() {
+  const wrap = document.getElementById('check-history-list');
+  if (!checkHistory.length) {
+    wrap.innerHTML = '<p class="history-empty">Nenhum check salvo ainda.</p>';
+    return;
+  }
+  wrap.innerHTML = checkHistory.map(e => `
+    <div class="history-entry" onclick="loadHistoryEntry(${e.id})">
+      <div>
+        <div class="history-entry-title">${escHtml(e.title)}</div>
+        <div class="history-entry-meta">Salvo em ${e.date}</div>
+      </div>
+      <span class="history-entry-arrow">→</span>
+    </div>
+  `).join('');
+}
+
+function loadHistoryEntry(id) {
+  const entry = checkHistory.find(e => e.id === id);
+  if (!entry) return;
+  document.getElementById('check-title-input').value = entry.title;
+  document.getElementById('check-textarea').value = entry.raw;
+  processCheck();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function clearCheck() {
+  document.getElementById('check-textarea').value = '';
+  document.getElementById('check-title-input').value = '';
+  document.getElementById('check-results').style.display = 'none';
+  document.getElementById('check-week-label').textContent = '';
+}
+
+
+// ════════════════════════════════════════
+//  PUBLICAR PARA DIRETORIA (GitHub API)
+// ════════════════════════════════════════
+function openPublishModal() {
+  if (!allTasks.length) { alert('Gere o dashboard antes de publicar.'); return; }
+  // Restaurar valores salvos na sessão
+  const savedUser  = sessionStorage.getItem('gh_user')  || '';
+  const savedRepo  = sessionStorage.getItem('gh_repo')  || '';
+  const savedToken = sessionStorage.getItem('gh_token') || '';
+  document.getElementById('gh-user').value  = savedUser;
+  document.getElementById('gh-repo').value  = savedRepo;
+  document.getElementById('gh-token').value = savedToken;
+  document.getElementById('publish-status').style.display = 'none';
+  document.getElementById('publish-modal').classList.add('open');
+}
+
+function closePublishModal(e) {
+  if (e && e.target.id !== 'publish-modal') return;
+  document.getElementById('publish-modal').classList.remove('open');
+}
+
+async function publishToGitHub() {
+  const token = document.getElementById('gh-token').value.trim();
+  const user  = document.getElementById('gh-user').value.trim();
+  const repo  = document.getElementById('gh-repo').value.trim();
+
+  if (!token || !user || !repo) {
+    showPublishStatus('error', '⚠️ Preencha todos os campos.');
+    return;
+  }
+
+  // Salvar na sessão (não persiste após fechar o browser)
+  sessionStorage.setItem('gh_user',  user);
+  sessionStorage.setItem('gh_repo',  repo);
+  sessionStorage.setItem('gh_token', token);
+
+  const btn = document.getElementById('btn-publish-go');
+  const spinner = document.getElementById('publish-spinner');
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  showPublishStatus('info', '⏳ Preparando dados...');
+
+  try {
+    // Montar payload de dados
+    const payload = {
+      publishedAt: new Date().toISOString(),
+      publishedBy: user,
+      tasks: allTasks.map(t => ({
+        id: t.id, source: t.source, title: t.title,
+        owner: t.owner, status: t.status, statusRaw: t.statusRaw,
+        due: t.due ? t.due.toISOString().split('T')[0] : '',
+        priority: t.priority, priorityRaw: t.priorityRaw, desc: t.desc
+      })),
+      kpis: buildKPIPayload(),
+      checks: checkHistory
+    };
+
+    const jsonContent = JSON.stringify(payload, null, 2);
+    const encoded = btoa(unescape(encodeURIComponent(jsonContent)));
+
+    // Verificar se o arquivo já existe (para pegar o SHA)
+    showPublishStatus('info', '⏳ Verificando repositório...');
+    const apiBase = `https://api.github.com/repos/${user}/${repo}`;
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+
+    let sha = null;
+    try {
+      const checkRes = await fetch(`${apiBase}/contents/data.json`, { headers });
+      if (checkRes.ok) {
+        const existing = await checkRes.json();
+        sha = existing.sha;
+      }
+    } catch(e) { /* arquivo não existe ainda — tudo bem */ }
+
+    // Fazer o PUT para criar/atualizar data.json
+    showPublishStatus('info', '⏳ Enviando dados...');
+    const body = {
+      message: `Dashboard atualizado em ${new Date().toLocaleString('pt-BR')}`,
+      content: encoded,
+      ...(sha ? { sha } : {})
+    };
+
+    const putRes = await fetch(`${apiBase}/contents/data.json`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!putRes.ok) {
+      const err = await putRes.json();
+      throw new Error(err.message || `HTTP ${putRes.status}`);
+    }
+
+    const viewUrl = `https://${user}.github.io/${repo}/`;
+    showPublishStatus('success',
+      `✅ Publicado com sucesso! <a href="${viewUrl}" target="_blank" style="color:var(--accent-bright);font-weight:600">${viewUrl}</a> — pode levar 1-2 min para atualizar.`
+    );
+
+  } catch(err) {
+    showPublishStatus('error', `❌ Erro: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function showPublishStatus(type, msg) {
+  const el = document.getElementById('publish-status');
+  const styles = {
+    error:   'background:#fde8e8;border:1px solid #c0392b;color:#8b2e2e',
+    success: 'background:#edf7f2;border:1px solid #27ae60;color:#2e6b4f',
+    info:    'background:#eef5fb;border:1px solid #1e6fa8;color:#1a4a6b'
+  };
+  el.style.cssText = `display:block;padding:12px 16px;border-radius:3px;font-size:13px;${styles[type]}`;
+  el.innerHTML = msg;
+}
+
+function buildKPIPayload() {
+  const now = new Date();
+  const total = allTasks.length;
+  const done  = allTasks.filter(t => t.status === 'concluído').length;
+  const prog  = allTasks.filter(t => t.status === 'em-andamento').length;
+  const late  = allTasks.filter(t => t.due && new Date(t.due) < now && t.status !== 'concluído').length;
+  const soon  = allTasks.filter(t => {
+    if (!t.due || t.status === 'concluído') return false;
+    const diff = (new Date(t.due) - now) / 86400000;
+    return diff >= 0 && diff <= 7;
+  }).length;
+  return { total, done, prog, late, soon,
+    pctDone: total ? Math.round(done/total*100) : 0 };
+}
+
+</script>
+
+<!-- MODAL PUBLICAR -->
+<div class="modal-overlay" id="publish-modal" onclick="closePublishModal(event)">
+  <div class="modal-box" style="max-width:500px">
+    <button class="modal-close" onclick="closePublishModal()">✕</button>
+    <div style="margin-bottom:20px">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px">Publicação</div>
+      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600">Publicar para Diretoria</div>
+      <div style="font-size:12px;color:var(--ink-light);margin-top:4px">Os dados serão enviados para o repositório público da diretoria via GitHub API.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <div class="mapping-field">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-light);display:block;margin-bottom:6px">
+          GitHub Token (Personal Access Token)
+          <a href="https://github.com/settings/tokens/new?scopes=repo&description=Dashboard+Diretoria" target="_blank" style="color:var(--accent-bright);font-size:10px;margin-left:6px;text-decoration:none">→ Gerar token</a>
+        </label>
+        <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:2px;font-family:monospace;font-size:12px;color:var(--ink);">
+        <div style="font-size:10px;color:var(--ink-light);margin-top:4px">Precisa da permissão <strong>repo</strong>. Salvo só nesta sessão.</div>
+      </div>
+
+      <div class="mapping-field">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-light);display:block;margin-bottom:6px">Usuário GitHub</label>
+        <input type="text" id="gh-user" placeholder="ex: oedu365-dev"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:2px;font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--ink);">
+      </div>
+
+      <div class="mapping-field">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-light);display:block;margin-bottom:6px">Repositório da Diretoria</label>
+        <input type="text" id="gh-repo" placeholder="ex: dash-diretoria"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:2px;font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--ink);">
+        <div style="font-size:10px;color:var(--ink-light);margin-top:4px">Repositório público com GitHub Pages ativo.</div>
+      </div>
+
+    </div>
+
+    <div id="publish-status" style="display:none;margin-top:16px;padding:12px 16px;border-radius:3px;font-size:13px;"></div>
+
+    <div style="display:flex;gap:10px;margin-top:24px;align-items:center">
+      <button class="btn-primary" onclick="publishToGitHub()" id="btn-publish-go" style="background:var(--gold);color:var(--ink);">
+        🚀 Publicar agora
+      </button>
+      <button class="btn-secondary" onclick="closePublishModal()">Cancelar</button>
+      <span id="publish-spinner" style="display:none;font-size:12px;color:var(--ink-light)">⏳ Publicando...</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
