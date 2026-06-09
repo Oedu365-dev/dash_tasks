@@ -1518,9 +1518,7 @@ async function publishToGitHub() {
         servico: c.servico
       })),
       kpis: buildKPIPayload(),
-      checks: checkHistory
-        .filter(c => c.items && c.items.length > 0)
-        .filter((c, i, arr) => arr.findIndex(x => x.title === c.title) === i) // remove duplicatas por título
+      checks: []
     };
 
     const jsonContent = JSON.stringify(payload, null, 2);
