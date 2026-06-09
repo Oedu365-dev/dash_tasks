@@ -1451,7 +1451,7 @@ function exportProjCSV() {
 //  PUBLICAR PARA DIRETORIA (GitHub API)
 // ════════════════════════════════════════
 function openPublishModal() {
-  if (!allTasks.length) { alert('Gere o dashboard antes de publicar.'); return; }
+  if (!allChamados.length) { alert('Importe os chamados antes de publicar.'); return; }
   // Restaurar valores salvos na sessão
   const savedUser  = sessionStorage.getItem('gh_user')  || '';
   const savedRepo  = sessionStorage.getItem('gh_repo')  || '';
