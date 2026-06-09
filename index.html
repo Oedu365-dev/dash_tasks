@@ -202,6 +202,7 @@ table.tasks tr:hover td{background:var(--paper-cool);cursor:pointer}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,25,35,.6);z-index:1000;align-items:center;justify-content:center}
+#publish-modal{z-index:2000}
 .modal-overlay.open{display:flex}
 .modal-box{background:white;border-radius:4px;padding:40px;max-width:600px;width:90%;position:relative;max-height:82vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
 .modal-close{position:absolute;top:16px;right:20px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-light)}
@@ -339,14 +340,8 @@ table.tasks tr:hover td{background:var(--paper-cool);cursor:pointer}
 <section id="dashboard-section">
 
   <!-- NAV ABAS -->
-  <div class="dash-nav">
-    <button class="dash-nav-tab active" id="dnt-chamados" onclick="switchDashTab('chamados')">📋 Chamados</button>
-    <button class="dash-nav-tab" id="dnt-projetos" onclick="switchDashTab('projetos')">🚀 Projetos Tecnológicos</button>
-  </div>
-
-  <!-- PAINEL CHAMADOS -->
-  <div id="dash-chamados">
-  <div class="dash-header">
+  <!-- HEADER FIXO FORA DAS ABAS -->
+  <div class="dash-header" style="margin-bottom:0;padding-bottom:20px">
     <div>
       <h2>Visão Executiva de Chamados</h2>
       <p id="dash-date">—</p>
@@ -354,9 +349,20 @@ table.tasks tr:hover td{background:var(--paper-cool);cursor:pointer}
     <div style="display:flex;gap:10px">
       <button class="btn-secondary" onclick="window.print()">🖨 Imprimir</button>
       <button class="btn-secondary" onclick="exportCSV()">⬇ Exportar CSV</button>
-      <button class="btn-primary" onclick="openPublishModal()" style="background:var(--gold);color:var(--ink);">🚀 Publicar para Diretoria</button>
+      <button class="btn-primary" id="btn-publicar" onclick="openPublishModal()" style="background:var(--gold);color:var(--ink);">🚀 Publicar para Diretoria</button>
       <button class="btn-secondary" onclick="goBack()">← Nova importação</button>
     </div>
+  </div>
+
+  <div class="dash-nav">
+    <button class="dash-nav-tab active" id="dnt-chamados" onclick="switchDashTab('chamados')">📋 Chamados</button>
+    <button class="dash-nav-tab" id="dnt-projetos" onclick="switchDashTab('projetos')">🚀 Projetos Tecnológicos</button>
+  </div>
+
+  <!-- PAINEL CHAMADOS -->
+  <div id="dash-chamados">
+  <div class="dash-header" style="display:none">
+    <div></div>
   </div>
 
   <!-- KPIs -->
@@ -1451,21 +1457,29 @@ function exportProjCSV() {
 //  PUBLICAR PARA DIRETORIA (GitHub API)
 // ════════════════════════════════════════
 function openPublishModal() {
-  if (!allChamados.length) { alert('Importe os chamados antes de publicar.'); return; }
-  // Restaurar valores salvos na sessão
-  const savedUser  = sessionStorage.getItem('gh_user')  || '';
-  const savedRepo  = sessionStorage.getItem('gh_repo')  || '';
-  const savedToken = sessionStorage.getItem('gh_token') || '';
-  document.getElementById('gh-user').value  = savedUser;
-  document.getElementById('gh-repo').value  = savedRepo;
-  document.getElementById('gh-token').value = savedToken;
-  document.getElementById('publish-status').style.display = 'none';
-  document.getElementById('publish-modal').classList.add('open');
+  if (!allChamados.length) {
+    alert('Importe os chamados antes de publicar.');
+    return;
+  }
+  try {
+    const modal = document.getElementById('publish-modal');
+    if (!modal) { alert('Modal não encontrado. Recarregue a página.'); return; }
+    document.getElementById('gh-user').value  = sessionStorage.getItem('gh_user')  || '';
+    document.getElementById('gh-repo').value  = sessionStorage.getItem('gh_repo')  || '';
+    document.getElementById('gh-token').value = sessionStorage.getItem('gh_token') || '';
+    document.getElementById('publish-status').style.display = 'none';
+    modal.style.display = 'flex';
+    modal.classList.add('open');
+  } catch(err) {
+    alert('Erro ao abrir modal: ' + err.message);
+  }
 }
 
 function closePublishModal(e) {
   if (e && e.target.id !== 'publish-modal') return;
-  document.getElementById('publish-modal').classList.remove('open');
+  const modal = document.getElementById('publish-modal');
+  modal.classList.remove('open');
+  modal.style.display = 'none';
 }
 
 async function publishToGitHub() {
