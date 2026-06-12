@@ -259,6 +259,19 @@ table.tasks tr:hover td{background:var(--paper-cool);cursor:pointer}
 .mensal-wrap{background:white;border:1px solid var(--border);border-radius:4px;padding:24px;margin-bottom:32px}
 .mensal-wrap h4{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-light);margin-bottom:20px}
 
+/* FILTRO DE PERÍODO */
+.period-bar{background:var(--ink);padding:12px 40px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,0.08)}
+.period-bar label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);white-space:nowrap}
+.period-btn{padding:6px 14px;border:1.5px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.7);font-family:'Instrument Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;border-radius:2px;transition:all .2s;white-space:nowrap}
+.period-btn:hover{border-color:var(--gold);color:var(--gold)}
+.period-btn.active{background:var(--gold);border-color:var(--gold);color:var(--ink);font-weight:600}
+.period-sep{width:1px;height:20px;background:rgba(255,255,255,0.1);margin:0 4px}
+.period-date{padding:5px 10px;border:1.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.8);font-family:'Instrument Sans',sans-serif;font-size:12px;border-radius:2px;cursor:pointer}
+.period-date:focus{outline:none;border-color:var(--gold)}
+.period-campo{padding:5px 10px;border:1.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.8);font-family:'DM Mono',monospace;font-size:10px;border-radius:2px;cursor:pointer}
+.period-campo:focus{outline:none;border-color:var(--gold)}
+.period-range-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--gold-light);white-space:nowrap;margin-left:4px}
+
 /* NAV ABAS DASHBOARD */
 .dash-nav{display:flex;border-bottom:2px solid var(--border);margin-bottom:32px}
 .dash-nav-tab{padding:11px 24px;background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:'Instrument Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;color:var(--ink-light);transition:all .2s}
@@ -314,6 +327,29 @@ table.tasks tr:hover td{background:var(--paper-cool);cursor:pointer}
     <span class="badge" id="badge-total">—</span>
   </div>
 </header>
+
+<!-- BARRA DE PERÍODO (só aparece no dashboard) -->
+<div class="period-bar" id="period-bar" style="display:none">
+  <label>Período:</label>
+  <button class="period-btn active" onclick="setPeriod('all')"     id="pb-all">Tudo</button>
+  <button class="period-btn"        onclick="setPeriod('today')"   id="pb-today">Hoje</button>
+  <button class="period-btn"        onclick="setPeriod('week')"    id="pb-week">Esta semana</button>
+  <button class="period-btn"        onclick="setPeriod('month')"   id="pb-month">Este mês</button>
+  <button class="period-btn"        onclick="setPeriod('lastmonth')" id="pb-lastmonth">Mês anterior</button>
+  <div class="period-sep"></div>
+  <button class="period-btn"        onclick="setPeriod('custom')"  id="pb-custom">Personalizado</button>
+  <input type="date" id="pd-from" class="period-date" style="display:none" onchange="applyCustomPeriod()">
+  <span style="color:rgba(255,255,255,0.4);font-size:11px;display:none" id="pd-sep">até</span>
+  <input type="date" id="pd-to"   class="period-date" style="display:none" onchange="applyCustomPeriod()">
+  <div class="period-sep"></div>
+  <label>Campo:</label>
+  <select class="period-campo" id="period-campo" onchange="reapplyPeriod()">
+    <option value="aberto">Abertura</option>
+    <option value="vencimento">Vencimento</option>
+    <option value="resolvido">Resolução</option>
+  </select>
+  <span class="period-range-label" id="period-range-label">—</span>
+</div>
 
 <main>
 
@@ -612,6 +648,9 @@ function v(el){ return el?el.value:''; }
 //  STATE
 // ════════════════════
 let allChamados = [], filtered = [], sortField = '', sortDir = 1, currentPage = 1;
+
+// Fonte única de dados para todos os renders — respeita o período ativo
+function getBase() { return (typeof activePeriod !== 'undefined' && activePeriod !== 'all') ? filtered : allChamados; }
 const PAGE = 25;
 let charts = {};
 
@@ -707,6 +746,8 @@ function gerarDashboard() {
 
   const now = new Date();
   document.getElementById('dash-date').textContent = 'Atualizado em ' + now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  showPeriodBar();
+  setPeriod('all');
   renderKPIs();
   renderInsights();
   renderVencimentos();
@@ -722,6 +763,8 @@ function gerarDashboard() {
 function goBack() {
   document.getElementById('dashboard-section').style.display = 'none';
   document.getElementById('upload-section').style.display = 'block';
+  hidePeriodBar();
+  activePeriod = 'all';
 }
 
 // ════════════════════
@@ -782,7 +825,7 @@ function renderInsights() {
 // ════════════════════
 function renderVencimentos() {
   const now = new Date(); now.setHours(0,0,0,0);
-  const abertos = allChamados.filter(c => ['Novo','Em atendimento'].includes(c.status));
+  const abertos = getBase().filter(c => ['Novo','Em atendimento'].includes(c.status));
 
   // Vencidos + próximos 3 dias, ordenados
   const alertas = abertos.filter(c => {
@@ -823,6 +866,7 @@ function renderVencimentos() {
 // ════════════════════
 function renderCharts() {
   try {
+  const base = getBase();
   const count = (arr, key) => arr.reduce((acc,c)=>{ acc[c[key]]=(acc[c[key]]||0)+1; return acc; }, {});
   const dOpts = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ font:{size:10}, padding:8, usePointStyle:true } } } };
 
@@ -831,27 +875,27 @@ function renderCharts() {
   if (charts.urg)    charts.urg.destroy();
   if (charts.sla)    charts.sla.destroy();
 
-  const statusC = count(allChamados,'status');
+  const statusC = count(base,'status');
   charts.status = new Chart(document.getElementById('chart-status'), { type:'doughnut', data:{
     labels: Object.keys(statusC), datasets:[{ data:Object.values(statusC),
     backgroundColor:['#27ae60','#1e6fa8','#e67e22','#95a5a6','#c0392b'], borderWidth:2, borderColor:'#fff' }]
   }, options:dOpts });
 
-  const catC = count(allChamados,'categoria');
+  const catC = count(base,'categoria');
   charts.cat = new Chart(document.getElementById('chart-cat'), { type:'doughnut', data:{
     labels:Object.keys(catC), datasets:[{ data:Object.values(catC),
     backgroundColor:['#1a4a6b','#c0392b','#b8963e','#27ae60'], borderWidth:2, borderColor:'#fff' }]
   }, options:dOpts });
 
-  const urgC = count(allChamados,'urgencia');
+  const urgC = count(base,'urgencia');
   charts.urg = new Chart(document.getElementById('chart-urg'), { type:'doughnut', data:{
     labels:Object.keys(urgC), datasets:[{ data:Object.values(urgC),
     backgroundColor:['#c0392b','#e67e22','#1e6fa8','#27ae60','#95a5a6'], borderWidth:2, borderColor:'#fff' }]
   }, options:dOpts });
 
-  const slaOk   = allChamados.filter(c=>c.sla==='No prazo').length;
-  const slaFora = allChamados.filter(c=>c.sla==='Fora do prazo').length;
-  const slaSem  = allChamados.filter(c=>!c.sla||c.sla==='').length;
+  const slaOk   = base.filter(c=>c.sla==='No prazo').length;
+  const slaFora = base.filter(c=>c.sla==='Fora do prazo').length;
+  const slaSem  = base.filter(c=>!c.sla||c.sla==='').length;
   charts.sla = new Chart(document.getElementById('chart-sla'), { type:'doughnut', data:{
     labels:['No prazo','Fora do prazo','Sem registro'], datasets:[{ data:[slaOk,slaFora,slaSem],
     backgroundColor:['#27ae60','#c0392b','#95a5a6'], borderWidth:2, borderColor:'#fff' }]
@@ -876,7 +920,7 @@ window._fotoMap = {
 };
 function renderAnalistasGrid() {
   const stats = {};
-  allChamados.forEach(c => {
+  getBase().forEach(c => {
     const r = c.responsavel || '—';
     if (!stats[r]) stats[r] = {total:0,resolvido:0,aberto:0,foraSLA:0,urgente:0,tempos:[]};
     stats[r].total++;
@@ -891,7 +935,7 @@ function renderAnalistasGrid() {
   });
 
   const sorted = Object.entries(stats).sort((a,b)=>b[1].total-a[1].total);
-  const total_geral = allChamados.length;
+  const total_geral = getBase().length;
   const cores = ['var(--ink)','var(--planner)','var(--gold)'];
   const iniciaisMap = { 'Bruno de Luca Rezende David': 'BL' };
   const iniciais = nome => iniciaisMap[nome] || nome.split(' ').slice(0,2).map(n=>n[0]).join('');
@@ -991,7 +1035,7 @@ function renderSobrecarga(nome, s, total_geral, sorted) {
   // N1 / N2 / Horas estimadas
   const n1tipos = ['Solicitação de serviço'];
   const n2tipos = ['Problema'];
-  const chamadosTop = allChamados.filter(c=>c.responsavel===nome);
+  const chamadosTop = getBase().filter(c=>c.responsavel===nome);
   const n1 = chamadosTop.filter(c=>n1tipos.includes(c.categoria)).length;
   const n2 = chamadosTop.filter(c=>n2tipos.includes(c.categoria)).length;
   const n1pct = s.total ? Math.round(n1/s.total*100) : 0;
@@ -1048,37 +1092,106 @@ function renderSobrecarga(nome, s, total_geral, sorted) {
 }
 
 function renderMensal() {
-  const mesesSet = new Set();
-  const analistas = [...new Set(allChamados.map(c=>c.responsavel).filter(Boolean))];
-  const mensal = {};
-  analistas.forEach(a => { mensal[a] = {}; });
-  allChamados.forEach(c => {
+  const base = getBase();
+  const canvas = document.getElementById('chart-mensal');
+  const wrap = canvas.parentElement;
+
+  // Remover mensagem de "sem dados" anterior, se existir
+  const oldMsg = wrap.querySelector('.mensal-empty-msg');
+  if (oldMsg) oldMsg.remove();
+  canvas.style.display = 'block';
+
+  if (chartMensal) { chartMensal.destroy(); chartMensal = null; }
+
+  if (!base.length) {
+    canvas.style.display = 'none';
+    const msg = document.createElement('div');
+    msg.className = 'mensal-empty-msg';
+    msg.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-light);font-size:13px';
+    msg.textContent = 'Nenhum chamado no período selecionado.';
+    wrap.appendChild(msg);
+    return;
+  }
+
+  // Decidir granularidade: se o período cobre só 1 dia/semana, agrupar por DIA em vez de mês
+  let datas = base.map(c => c.aberto).filter(Boolean);
+  if (!datas.length) {
+    canvas.style.display = 'none';
+    const msg = document.createElement('div');
+    msg.className = 'mensal-empty-msg';
+    msg.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-light);font-size:13px';
+    msg.textContent = 'Sem datas de abertura registradas neste período.';
+    wrap.appendChild(msg);
+    return;
+  }
+
+  const minD = new Date(Math.min(...datas));
+  const maxD = new Date(Math.max(...datas));
+  const spanDays = (maxD - minD) / 86400000;
+
+  // Granularidade: <=31 dias de intervalo -> agrupar por DIA; senão por MÊS
+  const porDia = spanDays <= 31;
+
+  const grupoKey = c => porDia
+    ? c.aberto.toISOString().slice(0,10)   // YYYY-MM-DD
+    : c.aberto.toISOString().slice(0,7);   // YYYY-MM
+
+  const grupoLabel = k => {
+    if (porDia) {
+      const [y,mo,d] = k.split('-');
+      return d + '/' + mo;
+    }
+    const [y,mo] = k.split('-');
+    return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(mo)-1]+'/'+y.slice(2);
+  };
+
+  const gruposSet = new Set();
+  const analistas = [...new Set(base.map(c=>c.responsavel).filter(Boolean))];
+  const dados = {};
+  analistas.forEach(a => { dados[a] = {}; });
+
+  base.forEach(c => {
     if (!c.aberto || !c.responsavel) return;
-    const mes = c.aberto.toISOString().slice(0,7);
-    mesesSet.add(mes);
-    mensal[c.responsavel][mes] = (mensal[c.responsavel][mes]||0)+1;
+    const k = grupoKey(c);
+    gruposSet.add(k);
+    dados[c.responsavel][k] = (dados[c.responsavel][k]||0)+1;
   });
-  const meses = [...mesesSet].sort();
-  const mesLabel = m => { const [y,mo]=m.split('-'); return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(mo)-1]+'/'+y.slice(2); };
+
+  const grupos = [...gruposSet].sort();
+
+  if (!grupos.length) {
+    canvas.style.display = 'none';
+    const msg = document.createElement('div');
+    msg.className = 'mensal-empty-msg';
+    msg.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-light);font-size:13px';
+    msg.textContent = 'Sem dados suficientes para exibir evolução.';
+    wrap.appendChild(msg);
+    return;
+  }
 
   const cores = ['#0f1923','#1a4a6b','#b8963e'];
-  const datasets = analistas.sort((a,b)=>{ const ta=allChamados.filter(c=>c.responsavel===a).length; const tb=allChamados.filter(c=>c.responsavel===b).length; return tb-ta; }).map((a,i) => ({
+  const datasets = analistas.sort((a,b)=>{ const ta=base.filter(c=>c.responsavel===a).length; const tb=base.filter(c=>c.responsavel===b).length; return tb-ta; }).map((a,i) => ({
     label: a.split(' ')[0],
-    data: meses.map(m=>mensal[a][m]||0),
+    data: grupos.map(g=>dados[a][g]||0),
     borderColor: cores[i%cores.length],
     backgroundColor: cores[i%cores.length]+'22',
-    tension: 0.3, fill: true, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2
+    tension: 0.3, fill: true, pointRadius: grupos.length===1?6:4, pointHoverRadius: 6, borderWidth: 2
   }));
 
-  if (chartMensal) chartMensal.destroy();
-  chartMensal = new Chart(document.getElementById('chart-mensal'), {
-    type: 'line',
-    data: { labels: meses.map(mesLabel), datasets },
+  // Se só há 1 grupo (1 dia/mês), usar gráfico de barras para visualização clara
+  const chartType = grupos.length === 1 ? 'bar' : 'line';
+  if (chartType === 'bar') {
+    datasets.forEach(ds => { ds.backgroundColor = ds.borderColor; ds.fill = false; });
+  }
+
+  chartMensal = new Chart(canvas, {
+    type: chartType,
+    data: { labels: grupos.map(grupoLabel), datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position:'top', labels:{ font:{size:12}, padding:16, usePointStyle:true } } },
       scales: {
-        y: { beginAtZero:true, grid:{ color:'rgba(0,0,0,0.05)' }, ticks:{ font:{size:11} } },
+        y: { beginAtZero:true, grid:{ color:'rgba(0,0,0,0.05)' }, ticks:{ font:{size:11}, precision:0 } },
         x: { grid:{ color:'rgba(0,0,0,0.05)' }, ticks:{ font:{size:11} } }
       }
     }
@@ -1090,7 +1203,7 @@ function renderMensal() {
 // ════════════════════
 function renderRespBars() {
   const counts = {};
-  allChamados.forEach(c => {
+  getBase().forEach(c => {
     const r = c.responsavel || '—';
     if (!counts[r]) counts[r] = {total:0, resolvido:0};
     counts[r].total++;
@@ -1108,7 +1221,7 @@ function renderRespBars() {
 // ════════════════════
 function renderCatBars() {
   const counts = {};
-  allChamados.forEach(c => {
+  getBase().forEach(c => {
     const s = c.servico || 'Outros';
     if (s === 'Projetos') return; // removido temporariamente
     counts[s] = (counts[s]||0)+1;
@@ -1138,13 +1251,23 @@ function populateFilters() {
 }
 
 function applyFilters() {
+  // Reaplica filtro de período antes dos filtros de texto/status
+  const { from, to } = getPeriodRange();
+  const campo = document.getElementById('period-campo') ? document.getElementById('period-campo').value : 'aberto';
+  let base = allChamados.filter(c => {
+    if (!from && !to) return true;
+    const d = c[campo]; if (!d) return false;
+    if (from && d < from) return false;
+    if (to   && d > to)   return false;
+    return true;
+  });
   const s = v(document.getElementById('f-search')).toLowerCase();
   const st = v(document.getElementById('f-status'));
   const ct = v(document.getElementById('f-cat'));
   const ug = v(document.getElementById('f-urg'));
   const rp = v(document.getElementById('f-resp'));
   const sl = v(document.getElementById('f-sla'));
-  filtered = allChamados.filter(c =>
+  filtered = base.filter(c =>
     (!s  || c.numero.includes(s) || c.assunto.toLowerCase().includes(s) || c.cliente.toLowerCase().includes(s)) &&
     (!st || c.status === st) && (!ct || c.categoria === ct) &&
     (!ug || c.urgencia === ug) && (!rp || c.responsavel === rp) &&
@@ -1277,6 +1400,337 @@ function exportCSV() {
   a.click();
 }
 
+
+
+// ════════════════════════════════════════
+//  FILTRO DE PERÍODO
+// ════════════════════════════════════════
+let activePeriod = 'all';
+let periodFrom = null, periodTo = null;
+
+function showPeriodBar() {
+  document.getElementById('period-bar').style.display = 'flex';
+}
+function hidePeriodBar() {
+  document.getElementById('period-bar').style.display = 'none';
+}
+
+function setPeriod(p) {
+  activePeriod = p;
+  // Mostrar/esconder inputs de data customizada
+  const showCustom = p === 'custom';
+  document.getElementById('pd-from').style.display  = showCustom ? 'inline-block' : 'none';
+  document.getElementById('pd-to').style.display    = showCustom ? 'inline-block' : 'none';
+  document.getElementById('pd-sep').style.display   = showCustom ? 'inline-block' : 'none';
+  // Atualizar botão ativo
+  ['all','today','week','month','lastmonth','custom'].forEach(id => {
+    document.getElementById('pb-'+id).classList.toggle('active', id === p);
+  });
+  if (p !== 'custom') applyPeriodFilter();
+}
+
+function applyCustomPeriod() {
+  const from = document.getElementById('pd-from').value;
+  const to   = document.getElementById('pd-to').value;
+  if (from) periodFrom = new Date(from + 'T00:00:00');
+  if (to)   periodTo   = new Date(to   + 'T23:59:59');
+  if (from || to) applyPeriodFilter();
+}
+
+function reapplyPeriod() {
+  if (activePeriod === 'custom') applyCustomPeriod();
+  else applyPeriodFilter();
+}
+
+function getPeriodRange() {
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch(activePeriod) {
+    case 'all':       return { from: null, to: null };
+    case 'today':     return { from: today, to: new Date(today.getTime() + 86399999) };
+    case 'week': {
+      const dow  = today.getDay();
+      const mon  = new Date(today); mon.setDate(today.getDate() - (dow === 0 ? 6 : dow-1));
+      const sun  = new Date(mon);   sun.setDate(mon.getDate() + 6); sun.setHours(23,59,59);
+      return { from: mon, to: sun };
+    }
+    case 'month': {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      const to   = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59);
+      return { from, to };
+    }
+    case 'lastmonth': {
+      const from = new Date(now.getFullYear(), now.getMonth()-1, 1);
+      const to   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      return { from, to };
+    }
+    case 'custom':    return { from: periodFrom, to: periodTo };
+    default:          return { from: null, to: null };
+  }
+}
+
+function applyPeriodFilter() {
+  const { from, to } = getPeriodRange();
+  const campo = document.getElementById('period-campo').value;
+
+  // Atualizar label de range
+  const lbl = document.getElementById('period-range-label');
+  if (!from && !to) {
+    lbl.textContent = 'Todos os chamados';
+  } else {
+    const fmt = d => d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    lbl.textContent = (from ? fmt(from) : '—') + ' → ' + (to ? fmt(to) : '—') + ' · ' +
+      ({aberto:'Abertura', vencimento:'Vencimento', resolvido:'Resolução'}[campo]);
+  }
+
+  // Filtrar allChamados pelo período e atualizar filtered PRIMEIRO
+  filtered = allChamados.filter(c => {
+    if (!from && !to) return true;
+    const d = c[campo];
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to   && d > to)   return false;
+    return true;
+  });
+
+  currentPage = 1;
+
+  // Re-renderizar tudo — todos os renders usam getBase() que respeita o período
+  renderKPIs();
+  renderInsights();
+  renderVencimentosPeriod(); // versão especial para vencimentos por range
+  renderCharts();
+  renderRespBars();
+  renderCatBars();
+  renderAnalistasGrid();
+  renderMensal();
+  applyFilters();
+}
+
+// ── Versões das funções de render que usam `filtered` em vez de `allChamados` ──
+function renderKPIsPeriod() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const base = filtered;
+  const total = base.length;
+  if (!total) {
+    ['kpi-total','kpi-aberto','kpi-resolvido','kpi-vencendo','kpi-vencido','kpi-sla'].forEach(id => {
+      document.getElementById(id).textContent = '0';
+    });
+    document.getElementById('badge-total').textContent = '0 chamados no período';
+    document.getElementById('kpi-resolvido-pct').textContent = '—';
+    document.getElementById('kpi-aberto-sub').textContent = '—';
+    document.getElementById('kpi-sla-pct').textContent = '—';
+    return;
+  }
+  const abertos   = base.filter(c => ['Novo','Em atendimento'].includes(c.status));
+  const resolvidos= base.filter(c => ['Resolvido','Fechado'].includes(c.status)).length;
+  const vencendo  = abertos.filter(c => { if(!c.vencimento) return false; const d=(c.vencimento-now)/86400000; return d>=0&&d<=3; }).length;
+  const vencido   = abertos.filter(c => c.vencimento && c.vencimento < now).length;
+  const foraSLA   = base.filter(c => c.sla==='Fora do prazo').length;
+
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('badge-total').textContent = total + ' chamados';
+  document.getElementById('kpi-aberto').textContent = abertos.length;
+  document.getElementById('kpi-aberto-sub').textContent = 'Novo: '+base.filter(c=>c.status==='Novo').length+' · Atend: '+base.filter(c=>c.status==='Em atendimento').length;
+  document.getElementById('kpi-resolvido').textContent = resolvidos;
+  document.getElementById('kpi-resolvido-pct').textContent = Math.round(resolvidos/total*100)+'% do período';
+  document.getElementById('kpi-vencendo').textContent = vencendo;
+  document.getElementById('kpi-vencido').textContent = vencido;
+  document.getElementById('kpi-sla').textContent = foraSLA;
+  document.getElementById('kpi-sla-pct').textContent = Math.round(foraSLA/total*100)+'% dos chamados';
+}
+
+function renderInsightsPeriod() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const base = filtered;
+  const total = base.length;
+  if (!total) { document.getElementById('insights-bar').innerHTML = '<div class="insight-card info" style="grid-column:1/-1"><div class="insight-icon">📅</div><div class="insight-title">Nenhum chamado no período selecionado</div></div>'; return; }
+  const abertos = base.filter(c=>['Novo','Em atendimento'].includes(c.status));
+  const vencido = abertos.filter(c=>c.vencimento&&c.vencimento<now).length;
+  const vencendo= abertos.filter(c=>{if(!c.vencimento)return false;const d=(c.vencimento-now)/86400000;return d>=0&&d<=3;}).length;
+  const foraSLA = base.filter(c=>c.sla==='Fora do prazo').length;
+  const urgentes= abertos.filter(c=>['Alta','Urgente'].includes(c.urgencia)).length;
+  const resolvidos=base.filter(c=>['Resolvido','Fechado'].includes(c.status)).length;
+  const ins=[];
+  if(vencido>0) ins.push({type:'danger',icon:'🚨',title:vencido+' chamado'+(vencido>1?'s':'')+' com prazo vencido',desc:'Abertos além do tempo limite'});
+  if(vencendo>0) ins.push({type:'warn',icon:'⏰',title:vencendo+' vence'+(vencendo>1?'m':'')+' em até 3 dias',desc:'Requerem ação imediata'});
+  if(foraSLA>0) ins.push({type:'purple',icon:'📊',title:foraSLA+' fora do SLA',desc:Math.round(foraSLA/total*100)+'% dos chamados'});
+  if(urgentes>0) ins.push({type:'info',icon:'🎯',title:urgentes+' urgentes/alta abertos',desc:'Requerem priorização'});
+  ins.push({type:'success',icon:'✅',title:Math.round(resolvidos/total*100)+'% de resolução',desc:resolvidos+' de '+total+' encerrados'});
+  document.getElementById('insights-bar').innerHTML = ins.slice(0,4).map(i=>
+    '<div class="insight-card '+i.type+'"><div class="insight-icon">'+i.icon+'</div><div class="insight-title">'+i.title+'</div><div class="insight-desc">'+i.desc+'</div></div>'
+  ).join('');
+}
+
+function renderVencimentosPeriod() {
+  const now = new Date(); now.setHours(0,0,0,0);
+
+  // Calcular o range do período selecionado
+  const { from, to } = getPeriodRange();
+
+  // Base: sempre todos os chamados abertos com vencimento definido
+  const abertos = allChamados.filter(c =>
+    ['Novo','Em atendimento'].includes(c.status) && c.vencimento
+  );
+
+  let alertas, tituloHeader;
+
+  if (activePeriod === 'all') {
+    // Modo padrão: vencidos + vencem nos próximos 3 dias
+    alertas = abertos.filter(c => {
+      const d = (c.vencimento - now) / 86400000;
+      return d <= 3;
+    });
+    tituloHeader = alertas.length
+      ? '⚠️ ' + alertas.length + ' chamado' + (alertas.length>1?'s':'') + ' com vencimento crítico (vencidos + próximos 3 dias)'
+      : null;
+  } else {
+    // Período selecionado: mostra TODOS cujo vencimento cai dentro do intervalo
+    alertas = abertos.filter(c => {
+      if (from && c.vencimento < from) return false;
+      if (to   && c.vencimento > to)   return false;
+      return true;
+    });
+    const labels = {
+      today:'hoje', week:'esta semana (5 dias úteis)',
+      month:'este mês', lastmonth:'mês anterior', custom:'período selecionado'
+    };
+    const rangeStr = from && to
+      ? from.toLocaleDateString('pt-BR') + ' a ' + to.toLocaleDateString('pt-BR')
+      : labels[activePeriod] || '';
+    tituloHeader = alertas.length
+      ? '⚠️ ' + alertas.length + ' chamado' + (alertas.length>1?'s':'')+' aberto'+(alertas.length>1?'s':'')+' com vencimento em: ' + rangeStr
+      : null;
+  }
+
+  // Ordenar: vencidos primeiro, depois por data crescente
+  alertas.sort((a, b) => a.vencimento - b.vencimento);
+
+  const header = document.getElementById('venc-header');
+  const list   = document.getElementById('venc-list');
+
+  if (!alertas.length) {
+    header.style.background = 'var(--success)';
+    header.textContent = activePeriod === 'all'
+      ? '✅ Nenhum chamado vencendo nos próximos 3 dias'
+      : '✅ Nenhum chamado aberto com vencimento neste período';
+    list.innerHTML = '<div style="padding:20px 24px;color:var(--ink-light);font-size:13px">Todos os chamados abertos estão fora deste período de vencimento.</div>';
+    return;
+  }
+
+  header.style.background = 'var(--danger-light)';
+  header.textContent = tituloHeader;
+
+  list.innerHTML = alertas.map(c => {
+    const diff = Math.round((c.vencimento - now) / 86400000);
+    let dstr, dcls;
+    if      (diff < 0)  { dstr = 'Vencido há ' + Math.abs(diff) + ' dia' + (Math.abs(diff)>1?'s':''); dcls = 'date-late'; }
+    else if (diff === 0){ dstr = 'Vence HOJE';    dcls = 'date-late'; }
+    else if (diff <= 3) { dstr = 'Vence em ' + diff + ' dia' + (diff>1?'s':'');  dcls = 'date-soon'; }
+    else                { dstr = c.vencimento.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric'}); dcls = 'date-ok'; }
+    return '<div class="venc-item" onclick="openModal('+c.idx+')">'
+      + '<span class="venc-num">#'+esc(c.numero)+'</span>'
+      + '<span class="tag-urg '+c.urgencia.toLowerCase()+'">'+esc(c.urgencia)+'</span>'
+      + '<span class="venc-assunto">'+esc(c.assunto)+'</span>'
+      + '<span style="font-size:12px;color:var(--ink-light);margin-right:12px">'+esc(c.cliente)+'</span>'
+      + '<span class="venc-date '+dcls+'">'+dstr+'</span>'
+      + '</div>';
+  }).join('');
+}
+
+function renderChartsPeriod() {
+  const base=filtered;
+  const count=(arr,key)=>arr.reduce((acc,c)=>{acc[c[key]]=(acc[c[key]]||0)+1;return acc;},{});
+  const dOpts={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8,usePointStyle:true}}}};
+  if(charts.status)charts.status.destroy();
+  if(charts.cat)charts.cat.destroy();
+  if(charts.urg)charts.urg.destroy();
+  if(charts.sla)charts.sla.destroy();
+  const statusC=count(base,'status');
+  charts.status=new Chart(document.getElementById('chart-status'),{type:'doughnut',data:{labels:Object.keys(statusC),datasets:[{data:Object.values(statusC),backgroundColor:['#27ae60','#1e6fa8','#e67e22','#95a5a6','#c0392b'],borderWidth:2,borderColor:'#fff'}]},options:dOpts});
+  const catC=count(base,'categoria');
+  charts.cat=new Chart(document.getElementById('chart-cat'),{type:'doughnut',data:{labels:Object.keys(catC),datasets:[{data:Object.values(catC),backgroundColor:['#1a4a6b','#c0392b','#b8963e','#27ae60'],borderWidth:2,borderColor:'#fff'}]},options:dOpts});
+  const urgC=count(base,'urgencia');
+  charts.urg=new Chart(document.getElementById('chart-urg'),{type:'doughnut',data:{labels:Object.keys(urgC),datasets:[{data:Object.values(urgC),backgroundColor:['#c0392b','#e67e22','#1e6fa8','#27ae60','#95a5a6'],borderWidth:2,borderColor:'#fff'}]},options:dOpts});
+  const slaOk=base.filter(c=>c.sla==='No prazo').length,slaFora=base.filter(c=>c.sla==='Fora do prazo').length,slaSem=base.filter(c=>!c.sla||c.sla==='').length;
+  charts.sla=new Chart(document.getElementById('chart-sla'),{type:'doughnut',data:{labels:['No prazo','Fora do prazo','Sem registro'],datasets:[{data:[slaOk,slaFora,slaSem],backgroundColor:['#27ae60','#c0392b','#95a5a6'],borderWidth:2,borderColor:'#fff'}]},options:dOpts});
+}
+
+function renderRespBarsPeriod() {
+  const counts={};
+  filtered.forEach(c=>{const r=c.responsavel||'—';if(!counts[r])counts[r]={total:0,resolvido:0};counts[r].total++;if(['Resolvido','Fechado'].includes(c.status))counts[r].resolvido++;});
+  const sorted=Object.entries(counts).sort((a,b)=>b[1].total-a[1].total);
+  document.getElementById('resp-bars').innerHTML=sorted.map(([name,c])=>{const pct=Math.round(c.resolvido/c.total*100);return '<div class="progress-bar-wrap"><div class="progress-bar-label"><span>'+esc(name)+'</span><span>'+c.resolvido+'/'+c.total+' · '+pct+'%</span></div><div class="progress-bar"><div class="progress-bar-fill" style="width:'+pct+'%"></div></div></div>';}).join('');
+}
+
+function renderCatBarsPeriod() {
+  const counts={};
+  filtered.forEach(c=>{const s=c.servico||'Outros';if(s==='Projetos')return;counts[s]=(counts[s]||0)+1;});
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const max=sorted[0]?.[1]||1;
+  document.getElementById('cat-bars').innerHTML=sorted.map(([name,n])=>{const pct=Math.round(n/max*100);return '<div class="progress-bar-wrap"><div class="progress-bar-label"><span>'+esc(name)+'</span><span>'+n+' chamado'+(n!==1?'s':'')+'</span></div><div class="progress-bar"><div class="progress-bar-fill" style="width:'+pct+'%;background:var(--gold)"></div></div></div>';}).join('');
+}
+
+function renderAnalistasGridPeriod() {
+  // Recalcular com filtered
+  const base=filtered;
+  const stats={};
+  base.forEach(c=>{const r=c.responsavel||'—';if(!stats[r])stats[r]={total:0,resolvido:0,aberto:0,foraSLA:0,urgente:0,tempos:[]};stats[r].total++;if(['Resolvido','Fechado'].includes(c.status))stats[r].resolvido++;if(['Novo','Em atendimento'].includes(c.status))stats[r].aberto++;if(c.sla==='Fora do prazo')stats[r].foraSLA++;if(['Alta','Urgente'].includes(c.urgencia))stats[r].urgente++;if(c.aberto&&c.resolvido){const diff=(c.resolvido-c.aberto)/3600000;if(diff>0&&diff<720)stats[r].tempos.push(diff);}});
+  const sorted=Object.entries(stats).sort((a,b)=>b[1].total-a[1].total);
+  const total_geral=base.length;
+  const cores=['var(--ink)','var(--planner)','var(--gold)'];
+  const iniciaisMap={'Bruno de Luca Rezende David':'BL'};
+  const iniciais=nome=>iniciaisMap[nome]||nome.split(' ').slice(0,2).map(n=>n[0]).join('');
+  const grid=document.getElementById('analistas-grid');
+  if(!sorted.length){grid.innerHTML='<p style="color:var(--ink-light)">Nenhum chamado no período.</p>';renderSobrecarga(null,null,0,[]);return;}
+  grid.innerHTML=sorted.map(([nome,s],i)=>{
+    const pct=Math.round(s.resolvido/s.total*100);
+    const share=total_geral?Math.round(s.total/total_geral*100):0;
+    const tm=s.tempos.length?Math.round(s.tempos.reduce((a,b)=>a+b,0)/s.tempos.length):0;
+    const tmStr=tm>=24?Math.round(tm/24)+'d':tm+'h';
+    const isTOP=i===0;
+    return '<div class="analista-card">'
+      +(isTOP?'<div class="trofy">🏆</div>':'')
+      +'<div class="analista-card-header">'
+        +(window._fotoMap&&window._fotoMap[nome]?'<div class="analista-avatar" style="padding:0;overflow:hidden;border:2px solid rgba(255,255,255,0.3)"><img src="'+window._fotoMap[nome]+'" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:50%"></div>':'<div class="analista-avatar" style="background:'+(nome==='Eduardo Faria'?'var(--gold)':cores[i%cores.length])+'">'+(nome==='Eduardo Faria'?'EF':iniciais(nome))+'</div>')
+        +'<div><div class="analista-nome">'+esc(nome==='Eduardo Faria'?'Eduardo Faria':nome.split(' ').slice(0,2).join(' '))+'</div>'
+        +'<div class="analista-sub">'+(isTOP?'★ TOP 1 · ':'')+share+'% dos chamados</div>'
+        +(nome==='Eduardo Faria'?'<div style="font-family:DM Mono,monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-top:2px">Gestor de TI</div>':'')
+        +'</div>'
+      +'</div>'
+      +'<div class="analista-stats">'
+        +'<div class="astat"><div class="astat-label">Total</div><div class="astat-val" style="color:var(--ink)">'+s.total+'</div></div>'
+        +'<div class="astat"><div class="astat-label">Resolvidos</div><div class="astat-val" style="color:var(--success)">'+s.resolvido+'</div></div>'
+        +'<div class="astat"><div class="astat-label">Em Aberto</div><div class="astat-val" style="color:var(--accent-bright)">'+s.aberto+'</div></div>'
+        +'<div class="astat"><div class="astat-label">TM Resolução</div><div class="astat-val" style="color:var(--ink-mid)">'+tmStr+'</div></div>'
+        +'<div class="astat"><div class="astat-label">Fora SLA</div><div class="astat-val" style="color:var(--danger-light)">'+s.foraSLA+'</div></div>'
+        +'<div class="astat"><div class="astat-label">Alta/Urgente</div><div class="astat-val" style="color:var(--warn-light)">'+s.urgente+'</div></div>'
+      +'</div>'
+      +'<div class="analista-footer">'
+        +'<div style="flex:1;margin-right:12px"><div style="height:6px;background:var(--paper-cool);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+cores[i%cores.length]+';border-radius:3px;transition:width .8s"></div></div></div>'
+        +'<span style="font-family:DM Mono,monospace;font-size:11px;color:var(--ink-light)">'+pct+'% res.</span>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+  if(sorted.length)renderSobrecarga(sorted[0][0],sorted[0][1],total_geral,sorted);
+}
+
+function renderMensalPeriod() {
+  const base=filtered;
+  const mesesSet=new Set();
+  const analistas=[...new Set(base.map(c=>c.responsavel).filter(Boolean))];
+  const mensal={};
+  analistas.forEach(a=>{mensal[a]={};});
+  base.forEach(c=>{if(!c.aberto||!c.responsavel)return;const mes=c.aberto.toISOString().slice(0,7);mesesSet.add(mes);mensal[c.responsavel][mes]=(mensal[c.responsavel][mes]||0)+1;});
+  const meses=[...mesesSet].sort();
+  const mesLabel=m=>{const[y,mo]=m.split('-');return['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(mo)-1]+'/'+y.slice(2);};
+  const cores=['#0f1923','#1a4a6b','#b8963e'];
+  const datasets=analistas.sort((a,b)=>{const ta=base.filter(c=>c.responsavel===a).length;const tb=base.filter(c=>c.responsavel===b).length;return tb-ta;}).map((a,i)=>({label:a.split(' ')[0],data:meses.map(m=>mensal[a][m]||0),borderColor:cores[i%cores.length],backgroundColor:cores[i%cores.length]+'22',tension:0.3,fill:true,pointRadius:4,pointHoverRadius:6,borderWidth:2}));
+  if(chartMensal)chartMensal.destroy();
+  if(!meses.length){document.getElementById('chart-mensal').getContext('2d').clearRect(0,0,999,999);return;}
+  chartMensal=new Chart(document.getElementById('chart-mensal'),{type:'line',data:{labels:meses.map(mesLabel),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:12},padding:16,usePointStyle:true}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}},x:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}}}}});
+}
 
 // ════════════════════════════════════════
 //  PROJETOS TECNOLÓGICOS
