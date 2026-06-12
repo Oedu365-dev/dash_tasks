@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com data: blob:; connect-src 'self' https://api.github.com;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Central de Chamados — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;0,700;1,300&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1976,7 +1976,12 @@ async function publishToGitHub() {
     };
 
     const jsonContent = JSON.stringify(payload, null, 2);
-    const encoded = btoa(unescape(encodeURIComponent(jsonContent)));
+    let encoded;
+    try {
+      encoded = btoa(unescape(encodeURIComponent(jsonContent)));
+    } catch(encErr) {
+      throw new Error('Falha ao codificar dados (caracteres especiais): ' + encErr.message);
+    }
 
     // Verificar se o arquivo já existe (para pegar o SHA)
     showPublishStatus('info', '⏳ Verificando repositório...');
@@ -2021,7 +2026,12 @@ async function publishToGitHub() {
     );
 
   } catch(err) {
-    showPublishStatus('error', `❌ Erro: ${err.message}`);
+    let msg = err.message;
+    if (msg === 'Failed to fetch') {
+      msg = 'Falha na conexão com api.github.com. Verifique: 1) sua internet, 2) se o token tem permissão "repo", 3) se o nome do repositório está correto.';
+    }
+    showPublishStatus('error', `❌ Erro: ${msg}`);
+    console.error('Erro publicação:', err);
   } finally {
     btn.disabled = false;
     spinner.style.display = 'none';
